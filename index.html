@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>Run Viewer</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f3f5f4; --surface:#ffffff; --text:#1b2327; --muted:#5f6b71; --line:#dde3e1;
+  --accent:#0b6b6b; --accent-ink:#ffffff; --soft:#e6f0ef; --warn:#8a5a00;
+  --grid:#e6ebe9; --axis:#69757b;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12181a; --surface:#1a2225; --text:#e7edee; --muted:#9aa8ad; --line:#2b373b;
+    --accent:#4fc3c3; --accent-ink:#082022; --soft:#1e3335; --warn:#e2b04a;
+    --grid:#26333a; --axis:#8b989e;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12181a; --surface:#1a2225; --text:#e7edee; --muted:#9aa8ad; --line:#2b373b;
+  --accent:#4fc3c3; --accent-ink:#082022; --soft:#1e3335; --warn:#e2b04a;
+  --grid:#26333a; --axis:#8b989e;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic","Meiryo",system-ui,sans-serif;
+  font-size:15px;line-height:1.7;-webkit-text-size-adjust:100%}
+.wrap{max-width:1080px;margin:0 auto;padding:18px 20px 40px}
+h1{font-size:36px;line-height:1.05;margin:0 0 6px;letter-spacing:-0.03em;font-weight:800}
+.brand-accent{color:var(--accent)}
+.brand-light{font-weight:400;color:var(--muted);margin-left:.28em}
+h2{font-size:16px;margin:0}
+.lead{margin:0;color:var(--muted);max-width:44em;font-size:14px}
+section{margin-top:16px}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:9px}
+.num{font-variant-numeric:tabular-nums}
+
+.drop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 16px;border:2px dashed var(--line);
+  border-radius:10px;background:var(--surface);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--soft)}
+.drop p{margin:0;flex:1 1 240px}
+.drop small{color:var(--muted);display:block}
+button,.btn{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:7px 14px}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.primary,.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:focus-visible,.btn:focus-visible,input:focus-visible,label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.msg{margin-top:10px;font-size:14px;color:var(--warn);white-space:pre-line}
+.msg:empty{display:none}
+
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.scrollhint{display:none;font-size:12.5px;color:var(--muted);margin:6px 2px 0}
+@media (max-width:900px){.scrollhint{display:block}}
+table{border-collapse:collapse;width:100%;min-width:880px;font-size:14px}
+th,td{padding:6px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--muted);background:var(--bg);font-size:13px;line-height:1.4}
+tr:last-child td{border-bottom:0}
+td:nth-child(1),th:nth-child(1),td:nth-child(2),th:nth-child(2),td:nth-child(3),th:nth-child(3),td:nth-child(4),th:nth-child(4){text-align:left}
+td.center,th.center{text-align:center}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.nameinp{font:inherit;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;width:8em}
+.nameinp:hover,.nameinp:focus{border-color:var(--line);background:var(--bg)}
+.raceSel{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 4px}
+.small{font-size:12.5px;color:var(--muted);line-height:1.5;display:block}
+td .small{white-space:normal;width:11.5em;margin-left:auto;text-align:right}
+.del{padding:2px 9px;font-size:13px;color:var(--muted)}
+.empty td{text-align:center;color:var(--muted);padding:26px 12px;white-space:normal}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 14px 8px}
+.controls{display:flex;gap:8px 20px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.controls label{display:inline-flex;gap:7px;align-items:center;cursor:pointer}
+.controls input[type="checkbox"]{accent-color:var(--accent);width:17px;height:17px}
+.controls input[type="number"]{font:inherit;width:4em;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)}
+.seg button{border:0;border-radius:0;padding:6px 12px;background:transparent;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);font-weight:700;box-shadow:inset 0 -3px 0 var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:5px 18px;margin:2px 0 8px;font-size:13.5px}
+.legend label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.legend input[type="checkbox"]{accent-color:var(--accent);width:15px;height:15px;margin:0}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
+.chartbox{position:relative;width:100%;height:385px}
+canvas{display:block;width:100%;height:100%}
+.tip{position:absolute;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.55;box-shadow:0 4px 14px rgba(0,0,0,.14);
+  white-space:nowrap;display:none;z-index:2}
+.tip b{font-weight:600}
+.hint{margin:8px 2px 0;font-size:13px;color:var(--muted)}
+.notes{margin:0;padding-left:1.2em;color:var(--muted);font-size:13.5px}
+.notes li{margin:3px 0}
+footer{margin-top:16px;color:var(--muted);font-size:13px}
+.notesbox{margin-top:16px;font-size:13.5px;color:var(--muted);-webkit-transform:translateZ(0)}
+.notesbox h2{margin-bottom:8px}
+@media (max-width:640px){
+  .wrap{padding:16px 14px 34px}
+  h1{font-size:27px}
+  .chartbox{height:335px}
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="brand-accent">Run</span><span class="brand-light">Viewer</span></h1>
+    <p class="lead">Garminの .fit ファイルを読み込んで、大会やジョグの記録を確認・比較します。<br>停止した時間を除いたペースも確認できます。</p>
+  </header>
+
+  <section aria-labelledby="h-add">
+    <h2 id="h-add">記録を追加</h2>
+    <div class="drop" id="drop">
+      <p>ここに .fit ファイルをドラッグするか、ボタンで選んでください(複数まとめて入れられます)。
+        <small>ファイルはこのページの中だけで処理され、外部には送られません。取り込んだ記録は、このブラウザに保存されます(位置情報は保存しません)。</small></p>
+      <label class="btn primary" for="file">ファイルを選ぶ</label>
+      <input id="file" type="file" accept=".fit" multiple hidden>
+    </div>
+    <div class="msg" id="msg" role="status"></div>
+    <div class="msg" id="savemsg" role="status"></div>
+  </section>
+
+  <section aria-labelledby="h-compare">
+    <div class="sechead">
+      <h2 id="h-compare">記録一覧</h2>
+      <button id="clear" class="del" style="display:none">記録をすべて削除する</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>名前</th><th>日付</th>
+            <th>距離</th><th>時間</th><th>停止時間</th><th>平均ペース<span class="small">停止を除く</span></th>
+            <th>平均心拍</th><th>後半−前半<span class="small">半分の距離で分割</span></th>
+            <th class="center">計算する距離</th><th class="center"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="scrollhint">→ 表がはみ出て見えるときは、横にスクロールできます。</p>
+    <p class="hint" style="margin:8px 2px 22px">同じ大会・同じ日の記録を並べるときは、名前に「大会名+人の名前」のように入れておくと区別しやすくなります。</p>
+
+    <div class="card">
+      <div class="controls">
+        <span class="seg" role="group" aria-label="縦軸の並び">
+          <button id="desc" aria-pressed="true">縦軸:上ほど速い</button>
+          <button id="asc" aria-pressed="false">縦軸:上ほど遅い</button>
+        </span>
+        <label id="hrbox"><input type="checkbox">平均心拍を重ねる</label>
+        <label><input id="stopbox" type="checkbox" checked>停止した時間を除く</label>
+        <label>停止とみなす速さ:時速<input id="stopkmh" type="number" min="0.5" max="4" step="0.5" value="2.0" style="width:4em">km未満</label>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="chartbox"><canvas id="cv" role="img" aria-label="1kmごとのペース推移の折れ線グラフ"></canvas><div class="tip" id="tip"></div></div>
+      <p class="hint" id="hint"></p>
+    </div>
+  </section>
+
+  <section class="notesbox" aria-labelledby="h-note">
+    <h2 id="h-note">補足説明</h2>
+    <ul class="notes">
+      <li>「停止」は、設定した速さ(標準は時速2.0km未満)より遅い状態が続いた時間です。トイレやエイドなどで止まった分が入ります。上のグラフの欄で数値を変えられます。</li>
+      <li>距離と時間はランニングウォッチ(fitファイル)の記録です。この距離は大会の正式な距離より、少し長く出ることも短く出ることもあり、公式記録とは少しずれます。</li>
+      <li>フル/ハーフ/ジョグが混在していても表示可能です。それぞれの記録の「計算する距離」で、フル(42.195km)・ハーフ(21.0975km)・自動・全距離を選べます。自動は、距離からフルかハーフかを自動で判断します。</li>
+      <li>「後半−前半」は、「+」の場合、後半の方が遅かったことを表します。</li>
+    </ul>
+  </section>
+  <footer>試作版です。表示がおかしい記録があれば、ファイル名を添えて知らせてください。</footer>
+</div>
+<script>
+// ===== FIT読み取り・解析(画面に依存しない部分) =====
+const FIT_EPOCH_OFFSET = 631065600; // 1970-01-01 から 1989-12-31 までの秒数
+const STOP_KMH_DEFAULT = 2.0;       // 標準:時速2.0km未満が続いたら「停止」
+const STOP_MIN_SEC = 20;            // ○印を付ける、停止の最小の長さ(秒)
+const FULL_M = 42195;
+const HALF_M = 21097.5;
+
+function readNum(dv, pos, size, bt, le) {
+  const base = bt & 0x1f;
+  switch (base) {
+    case 0: case 2: case 13: { if (size !== 1) return null; const v = dv.getUint8(pos); return v === 0xff ? null : v; }
+    case 10: { if (size !== 1) return null; const v = dv.getUint8(pos); return v === 0 ? null : v; }
+    case 1: { if (size !== 1) return null; const v = dv.getInt8(pos); return v === 0x7f ? null : v; }
+    case 3: { if (size !== 2) return null; const v = dv.getInt16(pos, le); return v === 0x7fff ? null : v; }
+    case 4: { if (size !== 2) return null; const v = dv.getUint16(pos, le); return v === 0xffff ? null : v; }
+    case 11: { if (size !== 2) return null; const v = dv.getUint16(pos, le); return v === 0 ? null : v; }
+    case 5: { if (size !== 4) return null; const v = dv.getInt32(pos, le); return v === 0x7fffffff ? null : v; }
+    case 6: { if (size !== 4) return null; const v = dv.getUint32(pos, le); return v === 0xffffffff ? null : v; }
+    case 12: { if (size !== 4) return null; const v = dv.getUint32(pos, le); return v === 0 ? null : v; }
+    default: return null;
+  }
+}
+
+function parseFit(buf) {
+  const u8 = new Uint8Array(buf);
+  if (u8.length < 14 || String.fromCharCode(u8[8], u8[9], u8[10], u8[11]) !== '.FIT') {
+    throw new Error('FITファイルではないようです');
+  }
+  const dv = new DataView(buf);
+  const hsize = u8[0];
+  const dsize = dv.getUint32(4, true);
+  const end = Math.min(hsize + dsize, u8.length);
+  const defs = {};
+  const recs = [];
+  let sessionStart = null;
+  let lastTs = 0;
+  let pos = hsize;
+  while (pos < end) {
+    const h = u8[pos++];
+    let def, ts = null;
+    if (h & 0x80) {
+      const lt = (h >> 5) & 3, off = h & 0x1f;
+      lastTs = (lastTs & ~0x1f) + off + (off < (lastTs & 0x1f) ? 0x20 : 0);
+      def = defs[lt]; ts = lastTs;
+    } else if (h & 0x40) {
+      const lt = h & 0x0f, dev = !!(h & 0x20);
+      const le = u8[pos + 1] === 0;
+      const gnum = dv.getUint16(pos + 2, le);
+      const nf = u8[pos + 4];
+      pos += 5;
+      const fields = []; let size = 0;
+      for (let i = 0; i < nf; i++) { fields.push([u8[pos], u8[pos + 1], u8[pos + 2]]); size += u8[pos + 1]; pos += 3; }
+      if (dev) {
+        const nd = u8[pos++];
+        for (let i = 0; i < nd; i++) { size += u8[pos + 1]; pos += 3; }
+      }
+      defs[lt] = { gnum, le, fields, size };
+      continue;
+    } else {
+      def = defs[h & 0x0f];
+    }
+    if (!def) throw new Error('ファイルの構造を読み取れませんでした');
+    if (def.gnum === 20 || def.gnum === 18) {
+      const o = {}; let p = pos;
+      for (const [num, size, bt] of def.fields) { o[num] = readNum(dv, p, size, bt, def.le); p += size; }
+      if (ts !== null) o[253] = ts;
+      if (typeof o[253] === 'number') lastTs = o[253];
+      if (def.gnum === 20) {
+        if (o[253] != null && o[5] != null) recs.push({ t: o[253], d: o[5] / 100, hr: o[3] || 0 });
+      } else if (sessionStart === null && o[2] != null) {
+        sessionStart = o[2];
+      }
+    }
+    pos += def.size;
+  }
+  return { recs, sessionStart };
+}
+
+function nameFromFile(fileName, startUnix) {
+  let s = fileName.replace(/\.fit$/i, '');
+  s = s.replace(/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/g, '').replace(/_?ACTIVITY/gi, '').replace(/\d{8,}/g, '');
+  s = s.replace(/^[\s_\-]+|[\s_\-]+$/g, '').replace(/_{2,}/g, '_');
+  if (s) return s;
+  const d = new Date(startUnix * 1000);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function buildActivity(fileName, parsed) {
+  const r = parsed.recs;
+  if (r.length < 10) throw new Error('走行データ(距離の記録)が見つかりませんでした');
+  const t0 = r[0].t;
+  const t = [], d = [], hr = [];
+  let lastT = -1, maxD = 0;
+  for (const x of r) {
+    const tt = x.t - t0; if (tt <= lastT) continue;
+    maxD = Math.max(maxD, x.d);
+    t.push(tt); d.push(Math.round(maxD * 10) / 10); hr.push(x.hr); lastT = tt;
+  }
+  if (d[d.length - 1] < 500) throw new Error('距離が短すぎるため取り込みませんでした');
+  const startUnix = (parsed.sessionStart != null ? parsed.sessionStart : t0) + FIT_EPOCH_OFFSET;
+  return { name: nameFromFile(fileName, startUnix), startUnix, t, d, hr };
+}
+
+function timeAt(a, x) {
+  const d = a.d, t = a.t; let hi = d.length - 1, lo = 0;
+  if (x <= d[0]) return t[0];
+  if (x >= d[hi]) return t[hi];
+  while (lo < hi) { const m = (lo + hi) >> 1; if (d[m] >= x) hi = m; else lo = m + 1; }
+  const i = lo;
+  return t[i - 1] + (t[i] - t[i - 1]) * ((x - d[i - 1]) / (d[i] - d[i - 1]));
+}
+
+function distanceFor(raceType, total) {
+  const rt = raceType || 'auto';
+  if (rt === 'all') return total;
+  if (rt === 'full') return total >= FULL_M ? FULL_M : total;
+  if (rt === 'half') return total >= HALF_M ? HALF_M : total;
+  // auto
+  if (total >= FULL_M) return FULL_M;
+  if (total >= HALF_M) return HALF_M;
+  return total;
+}
+
+function analyze(a, stopKmh) {
+  const stopMps = (stopKmh != null ? stopKmh : STOP_KMH_DEFAULT) / 3.6;
+  const n = a.d.length, total = a.d[n - 1];
+  const L = distanceFor(a.raceType, total);
+  const nKm = Math.floor(L / 1000 + 1e-9);
+  const km = [];
+  for (let k = 0; k < nKm; k++) km.push({ sec: timeAt(a, (k + 1) * 1000) - timeAt(a, k * 1000), stop: 0, hrSum: 0, hrN: 0 });
+  let stopTotal = 0, cur = null; const runs = [];
+  for (let i = 0; i < n - 1; i++) {
+    if (a.d[i] >= L) break;
+    const dt = a.t[i + 1] - a.t[i]; if (dt <= 0) continue;
+    if ((a.d[i + 1] - a.d[i]) / dt < stopMps) {
+      stopTotal += dt;
+      const k = Math.floor(a.d[i] / 1000); if (k < nKm) km[k].stop += dt;
+      if (cur && cur.end === i) { cur.sec += dt; cur.end = i + 1; }
+      else { cur = { km: a.d[i] / 1000, sec: dt, end: i + 1 }; runs.push(cur); }
+    }
+  }
+  let hs = 0, hn = 0;
+  for (let i = 0; i < n; i++) {
+    if (a.d[i] >= L) break;
+    if (a.hr[i] > 0) { hs += a.hr[i]; hn++; const k = Math.floor(a.d[i] / 1000); if (k < nKm) { km[k].hrSum += a.hr[i]; km[k].hrN++; } }
+  }
+  const time = timeAt(a, L);
+  let half = null;
+  if (L >= 5000) { const h = timeAt(a, L / 2); half = (time - h) - h; }
+  return {
+    L, total, nKm, time, stopTotal,
+    stops: runs.filter(r => r.sec >= STOP_MIN_SEC).map(r => ({ km: r.km, sec: r.sec })),
+    km: km.map(k => ({ sec: k.sec, stop: k.stop, hr: k.hrN ? k.hrSum / k.hrN : null })),
+    avgHr: hn ? hs / hn : null,
+    moving: (time - stopTotal) / (L / 1000),
+    half
+  };
+}
+
+function hms(s) { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`; }
+function ms(s) { s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
+
+// ===== 画面まわり =====
+(function () {
+  const PALETTE = ['#2a6fdb', '#2f9e44', '#e8590c', '#c2255c', '#7048e8', '#0c8599', '#a68b00', '#d6336c',
+    '#495057', '#087f5b', '#e64980', '#5c940d', '#1864ab', '#9c36b5'];
+  const STORE_KEY = 'runlog.v1';
+  const $ = (s) => document.querySelector(s);
+  let acts = [];      // {id,name,startUnix,t,d,hr,cut,show,color}
+  const ui = { desc: true, hr: false, noStop: true, stopKmh: STOP_KMH_DEFAULT };
+  let hover = null;   // 何km目にマウスがあるか(1始まり)
+
+  // ---- 保存(このブラウザの中だけ。位置情報は保存しない) ----
+  function save() {
+    try {
+      const slim = acts.map(a => ({ id: a.id, name: a.name, startUnix: a.startUnix, t: a.t, d: a.d, hr: a.hr, raceType: a.raceType, show: a.show, color: a.color }));
+      localStorage.setItem(STORE_KEY, JSON.stringify(slim));
+      $('#savemsg').textContent = '';
+    } catch (e) {
+      $('#savemsg').textContent = 'このブラウザには保存できませんでした。ページを閉じると一覧は消えます。';
+    }
+  }
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        acts = arr.filter(a => a && Array.isArray(a.t) && a.t.length > 10);
+        for (const a of acts) {
+          if (!a.raceType) a.raceType = (a.cut === false) ? 'all' : 'auto'; // 旧データからの移行
+          delete a.cut;
+        }
+      }
+    } catch (e) { /* 保存データがなくても動く */ }
+  }
+
+  // ---- 名前の重複(同じ名前・同じ日付)を避ける ----
+  function fmtDate(u) {
+    const d = new Date(u * 1000);
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  }
+  function uniqueName(baseName, dateStr) {
+    let name = baseName, n = 2;
+    const clash = () => acts.some(x => x.name === name && fmtDate(x.startUnix) === dateStr);
+    while (clash()) { name = `${baseName} (${n})`; n++; }
+    return name;
+  }
+
+  // ---- ファイル取り込み ----
+  async function addFiles(files) {
+    const errs = [];
+    let added = 0;
+    for (const f of files) {
+      if (!/\.fit$/i.test(f.name)) { errs.push(`${f.name}:.fitファイルではありません`); continue; }
+      try {
+        const buf = await f.arrayBuffer();
+        const a = buildActivity(f.name, parseFit(buf));
+        if (acts.some(x => x.startUnix === a.startUnix && x.d.length === a.d.length)) { errs.push(`${f.name}:すでに追加されています`); continue; }
+        a.name = uniqueName(a.name, fmtDate(a.startUnix));
+        a.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        a.raceType = 'auto';
+        a.show = true;
+        const used = new Set(acts.map(x => x.color));
+        a.color = PALETTE.find(c => !used.has(c)) || PALETTE[acts.length % PALETTE.length];
+        acts.push(a); added++;
+      } catch (e) { errs.push(`${f.name}:${e.message}`); }
+    }
+    acts.sort((x, y) => x.startUnix - y.startUnix);
+    $('#msg').textContent = errs.join('\n');
+    if (added) save();
+    render();
+  }
+
+  // ---- 一覧表 ----
+  function renderTable() {
+    const tb = $('#tbody'); tb.textContent = '';
+    if (!acts.length) {
+      const tr = document.createElement('tr'); tr.className = 'empty';
+      const td = document.createElement('td'); td.colSpan = 10;
+      td.textContent = 'まだ記録がありません。上の枠に、Garminから書き出した .fit ファイルを入れてください。';
+      tr.appendChild(td); tb.appendChild(tr); return;
+    }
+    for (const a of acts) {
+      const r = a.res;
+      const tr = document.createElement('tr');
+      const cell = (txt, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; tr.appendChild(td); return td; };
+
+      const tdName = document.createElement('td');
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = a.color; tdName.appendChild(sw);
+      const inp = document.createElement('input'); inp.className = 'nameinp'; inp.value = a.name; inp.setAttribute('aria-label', '名前');
+      inp.addEventListener('change', () => { a.name = inp.value.trim() || a.name; save(); drawChart(); renderLegend(); });
+      tdName.appendChild(inp); tr.appendChild(tdName);
+
+      const tdDate = cell(fmtDate(a.startUnix), 'num'); 
+      cell(`${(r.L / 1000).toFixed(1)}km`, 'num');
+      cell(hms(r.time), 'num');
+      const st = cell(ms(r.stopTotal), 'num');
+      if (r.stops.length) {
+        st.title = r.stops.map(x => `${x.km.toFixed(1)}km ${ms(x.sec)}`).join(' / ');
+        st.style.textDecoration = 'underline dotted';
+        st.style.textDecorationColor = 'var(--line)';
+      }
+      cell(ms(r.moving) + '/km', 'num');
+      cell(r.avgHr ? Math.round(r.avgHr) : '-', 'num');
+      cell(r.half == null ? '-' : signedMs(r.half), 'num');
+
+      const tdCut = document.createElement('td'); tdCut.className = 'center';
+      const sel = document.createElement('select'); sel.className = 'raceSel'; sel.setAttribute('aria-label', `${a.name}で計算する距離`);
+      const total = a.d[a.d.length - 1];
+      const opts = [['auto', '自動'], ['full', `フル(42.195km)`], ['half', `ハーフ(21.0975km)`], ['all', `全距離(${(total / 1000).toFixed(1)}km)`]];
+      for (const [v, label] of opts) {
+        const o = document.createElement('option'); o.value = v; o.textContent = label;
+        if (v === 'full' && total < FULL_M) o.disabled = true;
+        if (v === 'half' && total < HALF_M) o.disabled = true;
+        sel.appendChild(o);
+      }
+      sel.value = a.raceType || 'auto';
+      sel.addEventListener('change', () => { a.raceType = sel.value; save(); render(); });
+      tdCut.appendChild(sel);
+      tr.appendChild(tdCut);
+
+      const tdDel = document.createElement('td'); tdDel.className = 'center';
+      const del = document.createElement('button'); del.className = 'del'; del.textContent = '削除'; del.setAttribute('aria-label', `${a.name}を削除`);
+      del.addEventListener('click', () => { acts = acts.filter(x => x !== a); save(); render(); });
+      tdDel.appendChild(del); tr.appendChild(tdDel);
+      tb.appendChild(tr);
+    }
+  }
+
+  // ---- 凡例(表示・非表示のチェックもここに置く) ----
+  function visible() { return acts.filter(a => a.show && a.res && a.res.nKm >= 1); }
+  function renderLegend() {
+    const lg = $('#legend'); lg.textContent = '';
+    if (!acts.length) return;
+    for (const a of acts) {
+      const s = document.createElement('label');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = a.show;
+      cb.setAttribute('aria-label', `${a.name}をグラフに表示`);
+      cb.addEventListener('change', () => { a.show = cb.checked; save(); drawChart(); });
+      s.appendChild(cb);
+      const i = document.createElement('i'); i.style.borderColor = a.color; s.appendChild(i);
+      s.appendChild(document.createTextNode(a.name));
+      lg.appendChild(s);
+    }
+    // Safariで、直前まであった色付きの印が再描画されず消えて見えることがあるための対策
+    void lg.offsetHeight;
+    lg.style.opacity = '0.999';
+    requestAnimationFrame(() => { lg.style.opacity = ''; });
+  }
+
+  // ---- グラフ ----
+  const cv = $('#cv'), ctx = cv.getContext('2d'), tip = $('#tip');
+  let geo = null;
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  function niceRange(min, max, step) { return [Math.floor(min / step) * step, Math.ceil(max / step) * step]; }
+
+  function drawChart() {
+    const box = cv.parentElement, W = box.clientWidth, H = box.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    const vis = visible();
+    const grid = css('--grid'), axis = css('--axis'), text = css('--text'), surface = css('--surface');
+    ctx.font = '12.5px "Hiragino Sans","Yu Gothic UI",Meiryo,system-ui,sans-serif';
+    if (!vis.length) {
+      ctx.fillStyle = axis; ctx.textAlign = 'center';
+      ctx.fillText('表示する記録がありません', W / 2, H / 2); geo = null; return;
+    }
+    // データ
+    const series = vis.map(a => {
+      const pace = a.res.km.map(k => {
+        const s = ui.noStop ? k.sec - k.stop : k.sec;
+        return (ui.noStop && k.sec - k.stop < 30) ? null : s;
+      });
+      return { a, pace, hr: a.res.km.map(k => k.hr), stop: a.res.km.map(k => k.stop) };
+    });
+    const maxKm = Math.max(...series.map(s => s.pace.length));
+    let pmin = Infinity, pmax = -Infinity, hmin = Infinity, hmax = -Infinity;
+    for (const s of series) {
+      s.pace.forEach(v => { if (v != null) { pmin = Math.min(pmin, v); pmax = Math.max(pmax, v); } });
+      s.hr.forEach(v => { if (v != null) { hmin = Math.min(hmin, v); hmax = Math.max(hmax, v); } });
+    }
+    if (!isFinite(pmin)) { pmin = 300; pmax = 420; }
+    let pstep = (pmax - pmin) > 300 ? 60 : 30;
+    let [p0, p1] = niceRange(pmin - 8, pmax + 8, pstep); if (p1 - p0 < 3 * pstep) p1 = p0 + 3 * pstep;
+    const showHr = ui.hr && isFinite(hmin);
+    let h0 = 0, h1 = 1; if (showHr) { [h0, h1] = niceRange(hmin - 4, hmax + 4, 10); }
+    const padL = 76, padR = showHr ? 80 : 18, padT = 14, padB = 40;
+    const pw = W - padL - padR, ph = H - padT - padB;
+    const X = (km) => padL + (km - 0.5) / maxKm * pw;                 // 各kmの中央
+    const XD = (dist) => padL + dist / maxKm * pw;                    // 距離の位置
+    const Yp = (v) => ui.desc ? padT + (v - p0) / (p1 - p0) * ph : padT + ph - (v - p0) / (p1 - p0) * ph;
+    const Yh = (v) => padT + ph - (v - h0) / (h1 - h0) * ph;
+    geo = { padL, padR, padT, padB, pw, ph, maxKm, X, W, H, series };
+
+    // 目盛りと格子
+    ctx.lineWidth = 1; ctx.textBaseline = 'middle';
+    for (let v = p0; v <= p1; v += pstep) {
+      const y = Yp(v); ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = axis; ctx.textAlign = 'right'; ctx.fillText(ms(v), padL - 8, y);
+    }
+    if (showHr) for (let v = h0; v <= h1; v += 10) {
+      ctx.fillStyle = axis; ctx.textAlign = 'left'; ctx.fillText(String(v), W - padR + 8, Yh(v));
+    }
+    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    const step = maxKm > 30 ? 5 : (maxKm > 12 ? 2 : 1);
+    for (let k = step; k <= maxKm; k += step) {
+      const x = XD(k); ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + ph); ctx.stroke();
+      ctx.fillStyle = axis; ctx.fillText(String(k), x, padT + ph + 6);
+    }
+    ctx.fillStyle = axis; ctx.fillText('距離(km)  ※ランニングウォッチ(fitファイル)の距離', padL + pw / 2, padT + ph + 22);
+    ctx.save(); ctx.translate(10, padT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(ui.desc ? '1kmペース(分:秒/km) 上ほど速い' : '1kmペース(分:秒/km) 上ほど遅い', 0, -2); ctx.restore();
+    if (showHr) { ctx.save(); ctx.translate(W - 8, padT + ph / 2); ctx.rotate(Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('平均心拍(点線)', 0, -2); ctx.restore(); }
+
+    // 線
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const s of series) {
+      const col = s.a.color;
+      if (showHr) {
+        ctx.strokeStyle = col; ctx.globalAlpha = .75; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); ctx.beginPath();
+        let pen = false; s.hr.forEach((v, i) => { if (v == null) { pen = false; return; } const x = X(i + 1), y = Yh(v); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; });
+        ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.beginPath();
+      let pen = false; s.pace.forEach((v, i) => { if (v == null) { pen = false; return; } const x = X(i + 1), y = Yp(v); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; });
+      ctx.stroke();
+      ctx.fillStyle = col; s.pace.forEach((v, i) => { if (v == null) return; ctx.beginPath(); ctx.arc(X(i + 1), Yp(v), 2.6, 0, 6.283); ctx.fill(); });
+      // 停止の印(停止を除いた表示のとき)
+      if (ui.noStop) s.stop.forEach((st, i) => {
+        if (st < 20 || s.pace[i] == null) return;
+        ctx.strokeStyle = col; ctx.fillStyle = surface; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(i + 1), Yp(s.pace[i]), 6.5, 0, 6.283); ctx.fill(); ctx.stroke();
+      });
+    }
+    // ホバーの縦線
+    if (hover && hover >= 1 && hover <= maxKm) {
+      ctx.strokeStyle = axis; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(X(hover), padT); ctx.lineTo(X(hover), padT + ph); ctx.stroke(); ctx.setLineDash([]);
+    }
+    $('#hint').textContent = ui.noStop ? '○マークは、その地点で、上で設定した速さを下回った時間の合計が20秒以上あったことを示します(その時間はペースから除いています)。' : '停止した時間もペースに含めています。停止があったキロは、大きく遅く見えます。';
+  }
+
+  cv.addEventListener('mousemove', (e) => {
+    if (!geo) return;
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left;
+    const km = Math.floor((x - geo.padL) / geo.pw * geo.maxKm) + 1;
+    if (km < 1 || km > geo.maxKm) { hover = null; tip.style.display = 'none'; drawChart(); return; }
+    hover = km; drawChart();
+    let html = `<b>${km}km目</b>`;
+    for (const s of geo.series) {
+      if (km > s.pace.length) continue;
+      const k = s.a.res.km[km - 1];
+      const shown = ui.noStop ? k.sec - k.stop : k.sec;
+      let line = `<span class="sw" style="background:${s.a.color}"></span>${s.a.name.replace(/</g, '&lt;')}  ${ms(shown)}/km`;
+      if (k.hr) line += `  心拍${Math.round(k.hr)}`;
+      if (k.stop >= 5) line += `  停止${ms(k.stop)}`;
+      html += '<br>' + line;
+    }
+    tip.innerHTML = html; tip.style.display = 'block';
+    const bw = cv.parentElement.clientWidth, tw = tip.offsetWidth;
+    let left = e.clientX - r.left + 14; if (left + tw > bw) left = e.clientX - r.left - tw - 14;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - r.top - 10) + 'px';
+  });
+  cv.addEventListener('mouseleave', () => { hover = null; tip.style.display = 'none'; drawChart(); });
+
+  // ---- Safari/WebKitが再描画を止めて見えることがある対策:強制的に描き直させる ----
+  function nudgeRepaint() {
+    const b = document.body;
+    b.style.webkitTransform = 'translateZ(0)';
+    requestAnimationFrame(() => { b.style.webkitTransform = ''; });
+  }
+
+  // ---- 全体の描き直し ----
+  function render() {
+    for (const a of acts) a.res = analyze(a, ui.stopKmh);
+    renderTable(); renderLegend(); drawChart();
+    $('#clear').style.display = acts.length ? '' : 'none';
+    nudgeRepaint();
+  }
+
+  // ---- 操作 ----
+  const fileInp = $('#file'), drop = $('#drop');
+  fileInp.addEventListener('change', () => { addFiles([...fileInp.files]); fileInp.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { addFiles([...e.dataTransfer.files]); });
+  $('#clear').addEventListener('click', () => {
+    if (confirm('取り込んだ記録をすべて消しますか?(元のFITファイルは消えません)')) { acts = []; save(); render(); }
+  });
+  const segAsc = $('#asc'), segDesc = $('#desc');
+  function setDesc(v) { ui.desc = v; segAsc.setAttribute('aria-pressed', String(!v)); segDesc.setAttribute('aria-pressed', String(v)); drawChart(); }
+  segAsc.addEventListener('click', () => setDesc(false)); segDesc.addEventListener('click', () => setDesc(true));
+  $('#hrbox').addEventListener('change', (e) => { ui.hr = e.target.checked; drawChart(); });
+  $('#stopbox').addEventListener('change', (e) => { ui.noStop = e.target.checked; drawChart(); });
+  const stopkmhInp = $('#stopkmh');
+  stopkmhInp.addEventListener('change', () => {
+    const v = parseFloat(stopkmhInp.value);
+    ui.stopKmh = (isFinite(v) && v > 0) ? Math.min(v, 4) : STOP_KMH_DEFAULT;
+    stopkmhInp.value = ui.stopKmh;
+    render();
+  });
+
+  // コンテナ自体のサイズ変化を直接監視(向き変更やレイアウト変化に、window の resize より確実に追従する)
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => drawChart()).observe(cv.parentElement);
+  }
+  window.addEventListener('resize', drawChart);
+  window.addEventListener('orientationchange', () => {
+    // iOSは向き変更直後に寸法がまだ確定していないことがあるため、少し待って再描画する
+    setTimeout(drawChart, 60);
+    setTimeout(drawChart, 350);
+    setTimeout(nudgeRepaint, 60);
+    setTimeout(nudgeRepaint, 350);
+    // Safariでdetails要素などの再描画が止まって見えることがあるので、強制的に描き直す
+    const nb = document.querySelector('.notesbox');
+    if (nb) { nb.style.display = 'none'; void nb.offsetHeight; nb.style.display = ''; }
+  });
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawChart);
+  new MutationObserver(drawChart).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  load(); render();
+})();
+
+</script>
+</body>
+</html>
