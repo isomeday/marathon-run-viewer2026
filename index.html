@@ -107,7 +107,7 @@ th.wrapok{white-space:normal}
 .legend input[type="checkbox"]{accent-color:var(--accent);width:15px;height:15px;margin:0}
 .legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
 .chartbox{position:relative;width:100%;height:385px}
-canvas{display:block;width:100%;height:100%}
+canvas{display:block;width:100%;height:100%;touch-action:pan-y}
 .tip{position:absolute;pointer-events:none;background:var(--text);color:var(--surface);border-radius:6px;padding:6px 9px;
   font-size:13px;line-height:1.55;box-shadow:0 2px 8px rgba(0,0,0,.25);white-space:nowrap;display:none;z-index:2}
 .tip b{font-family:var(--num);font-size:16px;font-weight:600}
@@ -144,7 +144,7 @@ canvas{display:block;width:100%;height:100%}
       <dt>計算に使う距離</dt>
       <dd>それぞれの記録で、平均ペースの計算に使う距離を選べます。初期値はフルマラソンです。</dd>
       <dd>フルマラソン(42.195km)・ハーフマラソン(21.0975km):記録全体の時間を、大会の正式な距離で割って、平均ペースを出します。計測距離が正式な距離とずれていても、公式記録に近いペースになります。</dd>
-      <dd>任意指定(1.0〜99.9km):スタートから、指定した距離の地点までで計算します。</dd>
+      <dd>任意指定(<span id="customMin">1.0</span>〜<span id="customMax">99.9</span>km):スタートから、指定した距離の地点までで計算します。</dd>
       <dd>計測距離を使う:記録全体の時間を、計測距離で割ります。ウルトラや、フル・ハーフ以外の距離のときに使います。</dd>
       <dd>選んだ距離が記録と合っていないと(たとえば10kmの記録でフルマラソンを選ぶと)、平均ペースが大きく外れます。</dd>
       <dt>計測距離・時間</dt>
@@ -153,7 +153,7 @@ canvas{display:block;width:100%;height:100%}
       <dt>後半−前半</dt>
       <dd>計測距離の半分の地点で分けて比べます(任意指定のときは、指定した距離の半分)。「+」の場合、後半の方が遅かったことを表します。みなし停止の時間も含めて比べます。</dd>
       <dt>平均心拍</dt>
-      <dd>開始から15分までの間に、その後の安定した心拍(15〜40分の中央値)より10以上高い値があれば、その値を除いて計算します。ランニングウォッチが開始直後に、実際より高く表示することがあるためです。</dd>
+      <dd>開始から<span id="hrEarlyMin">15</span>分までの間に、その後の安定した心拍(<span id="hrBaseFrom">15</span>〜<span id="hrBaseTo">40</span>分の中央値)より<span id="hrExcess">10</span>以上高い値があれば、その値を除いて計算します。ランニングウォッチが開始直後に、実際より高く表示することがあるためです。</dd>
     </dl>
     <h3>3. みなし停止</h3>
     <p>「みなし停止」は、トイレやエイド、休息などで通常の走行をしていない場面をカットしたときに、平均ペースがどれだけだったかの概算を求めるのが目的です。</p>
@@ -166,7 +166,7 @@ canvas{display:block;width:100%;height:100%}
     <div class="drop" id="drop">
       <p>ここにfitファイル(またはfitファイル入りのzipファイル)をドラッグするか、ボタンで選んでください(複数まとめて入れられます)。
         <small>ファイルはこのページの中だけで処理され、外部には送られません。取り込んだ記録は、このブラウザに保存されます(位置情報は保存しません)。</small></p>
-      <label class="btn primary" for="file">ファイルを選ぶ</label>
+      <button type="button" class="btn primary" id="pick">ファイルを選ぶ</button>
       <input id="file" type="file" accept=".fit,.zip" multiple hidden>
     </div>
     <div class="msg" id="msg" role="status"></div>
@@ -215,7 +215,7 @@ canvas{display:block;width:100%;height:100%}
     <p>計算結果は目安です。ご利用は自己責任でお願いします。</p>
     <p>読み込んだ記録は、お使いのブラウザにだけ保存され、外部には送信されません。</p>
     <p>なお、文字の書体(Googleフォント)は、Googleから読み込んでいます。ページを開く際、お使いの端末のIPアドレスなどがGoogleに送信されます。</p>
-    <p class="ver">Ver. 1.1.0(2026年10月20日版)</p>
+    <p class="ver">Ver. 1.1.1(2026年10月20日版)</p>
   </footer>
 </div>
 <script>
@@ -227,6 +227,10 @@ const STOP_KMH_CHOICES = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]; // 停止と�
 const STOP_RUN_SEC = 10;            // この秒数以上続いた遅い状態だけを、みなし停止に数える
 const STOP_MARK_SEC = 20;           // ○印:その1km区間のみなし停止の合計が、この秒数以上のとき
 const MIN_POINTS = 10;              // 走行データとして扱う、記録の点の最小数
+const MIN_DIST_M = 500;             // これより短い記録は読み込まない(m)
+const MIN_MOVING_SEC = 30;          // みなし停止を除いた1kmの時間がこれ未満なら、その点はグラフに出さない
+const TIP_STOP_MIN_SEC = 5;         // グラフの値表示で、みなし停止を書き添える最小の秒数
+const HR_WEIGHT_MAX_SEC = 15;       // 平均心拍の重み:記録の間隔がこれより長いとき(一時停止など)は、この秒数とみなす
 const FIT_MAX_MB = 20, ZIP_MAX_MB = 200; // 読み込むファイルの大きさの上限(MB)
 const FULL_M = 42195;
 const HALF_M = 21097.5;
@@ -263,57 +267,81 @@ function parseFit(buf) {
   const end = Math.min(hsize + dsize, u8.length);
   const defs = {};
   const recs = [];
-  let sessionStart = null;
+  let sessionStart = null, tzOffset = null;
   let lastTs = 0;
   let pos = hsize;
-  while (pos < end) {
-    const h = u8[pos++];
-    let def, ts = null;
-    if (h & 0x80) {
-      const lt = (h >> 5) & 3, off = h & 0x1f;
-      lastTs = (lastTs & ~0x1f) + off + (off < (lastTs & 0x1f) ? 0x20 : 0);
-      def = defs[lt]; ts = lastTs;
-    } else if (h & 0x40) {
-      const lt = h & 0x0f, dev = !!(h & 0x20);
-      const le = u8[pos + 1] === 0;
-      const gnum = dv.getUint16(pos + 2, le);
-      const nf = u8[pos + 4];
-      pos += 5;
-      const fields = []; let size = 0;
-      for (let i = 0; i < nf; i++) { fields.push([u8[pos], u8[pos + 1], u8[pos + 2]]); size += u8[pos + 1]; pos += 3; }
-      if (dev) {
-        const nd = u8[pos++];
-        for (let i = 0; i < nd; i++) { size += u8[pos + 1]; pos += 3; }
+  try {
+    while (pos < end) {
+      const h = u8[pos++];
+      let def, ts = null;
+      if (h & 0x80) {
+        const lt = (h >> 5) & 3, off = h & 0x1f;
+        lastTs = (lastTs & ~0x1f) + off + (off < (lastTs & 0x1f) ? 0x20 : 0);
+        def = defs[lt]; ts = lastTs;
+      } else if (h & 0x40) {
+        if (pos + 5 > end) break;
+        const lt = h & 0x0f, dev = !!(h & 0x20);
+        const le = u8[pos + 1] === 0;
+        const gnum = dv.getUint16(pos + 2, le);
+        const nf = u8[pos + 4];
+        pos += 5;
+        const fields = []; let size = 0, tsPos = -1, tsSize = 0, tsBt = 0;
+        for (let i = 0; i < nf; i++) {
+          if (pos + 3 > end) throw fitError('broken');
+          if (u8[pos] === 253) { tsPos = size; tsSize = u8[pos + 1]; tsBt = u8[pos + 2]; }
+          fields.push([u8[pos], u8[pos + 1], u8[pos + 2]]); size += u8[pos + 1]; pos += 3;
+        }
+        if (dev) {
+          const nd = u8[pos++];
+          for (let i = 0; i < nd; i++) { size += u8[pos + 1]; pos += 3; }
+        }
+        defs[lt] = { gnum, le, fields, size, tsPos, tsSize, tsBt };
+        continue;
+      } else {
+        def = defs[h & 0x0f];
       }
-      defs[lt] = { gnum, le, fields, size };
-      continue;
-    } else {
-      def = defs[h & 0x0f];
-    }
-    if (!def) throw fitError('broken');
-    if (def.gnum === 20 || def.gnum === 18) {
-      const o = {}; let p = pos;
-      for (const [num, size, bt] of def.fields) { o[num] = readNum(dv, p, size, bt, def.le); p += size; }
-      if (ts !== null) o[253] = ts;
-      if (typeof o[253] === 'number') lastTs = o[253];
-      if (def.gnum === 20) {
-        if (o[253] != null && o[5] != null) recs.push({ t: o[253], d: o[5] / 100, hr: o[3] || 0 });
-      } else if (sessionStart === null && o[2] != null) {
-        sessionStart = o[2];
+      if (!def) throw fitError('broken');
+      if (pos + def.size > end) break;   // 末尾が欠けている(電池切れなど)
+      if (def.gnum === 20 || def.gnum === 18 || def.gnum === 34) {
+        const o = {}; let p = pos;
+        for (const [num, size, bt] of def.fields) { o[num] = readNum(dv, p, size, bt, def.le); p += size; }
+        if (ts !== null) o[253] = ts;
+        if (def.gnum === 20) {
+          if (o[253] != null && o[5] != null) recs.push({ t: o[253], d: o[5] / 100, hr: o[3] || 0 });
+        } else if (def.gnum === 18) {
+          if (sessionStart === null && o[2] != null) sessionStart = o[2];
+        } else if (o[253] != null && o[5] != null) {
+          // activity の local_timestamp から、記録した場所の時刻との差を出す(日付を現地の日付にするため)
+          const off = o[5] - o[253];
+          if (Math.abs(off) <= 14 * 3600 && off % 900 === 0) tzOffset = off;
+        }
+        if (typeof o[253] === 'number') lastTs = o[253];
+      } else if (ts === null && def.tsPos >= 0) {
+        // どのメッセージのタイムスタンプでも、圧縮タイムスタンプの基準を更新する
+        const v = readNum(dv, pos + def.tsPos, def.tsSize, def.tsBt, def.le);
+        if (v != null) lastTs = v;
       }
+      pos += def.size;
     }
-    pos += def.size;
+  } catch (e) {
+    if (!recs.length) throw (e && e.code) ? e : fitError('broken');   // 途中で壊れていても、読めた所までは使う
   }
-  return { recs, sessionStart };
+  return { recs, sessionStart, tzOffset };
 }
 
-function nameFromFile(fileName, startUnix) {
+// 日付の文字(記録した場所の時刻との差が分かれば現地の日付、分からなければ見ている端末の日付)
+function fmtYmd(u, tz) {
+  if (tz != null) { const d = new Date((u + tz) * 1000); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }
+  const d = new Date(u * 1000);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function nameFromFile(fileName, startUnix, tz) {
   let s = fileName.replace(/\.fit$/i, '');
   s = s.replace(/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/g, '').replace(/_?ACTIVITY/gi, '').replace(/\d{8,}/g, '');
   s = s.replace(/^[\s_\-]+|[\s_\-]+$/g, '').replace(/_{2,}/g, '_');
   if (s) return s;
-  const d = new Date(startUnix * 1000);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  return fmtYmd(startUnix, tz);
 }
 
 function buildActivity(fileName, parsed) {
@@ -327,9 +355,10 @@ function buildActivity(fileName, parsed) {
     maxD = Math.max(maxD, x.d);
     t.push(tt); d.push(Math.round(maxD * 10) / 10); hr.push(x.hr); lastT = tt;
   }
-  if (d[d.length - 1] < 500) throw fitError('short');
+  if (d[d.length - 1] < MIN_DIST_M) throw fitError('short');
   const startUnix = (parsed.sessionStart != null ? parsed.sessionStart : t0) + FIT_EPOCH_OFFSET;
-  return { name: nameFromFile(fileName, startUnix), startUnix, t, d, hr };
+  const tzOffset = parsed.tzOffset != null ? parsed.tzOffset : null;
+  return { name: nameFromFile(fileName, startUnix, tzOffset), startUnix, tzOffset, t, d, hr };
 }
 
 function timeAt(a, x) {
@@ -413,8 +442,11 @@ function analyze(a, stopKmh) {
     if (a.t[i] > endT) break;
     if (a.hr[i] > 0) {
       if (hrCut !== null && a.t[i] < HR_EARLY_SEC && a.hr[i] >= hrCut) { hExcl++; continue; }
-      hs += a.hr[i]; hn++;
-      if (a.d[i] < Lg) { const k = Math.floor(a.d[i] / 1000); if (k < nKm) { km[k].hrSum += a.hr[i]; km[k].hrN++; } }
+      // 記録の間隔(次の点までの秒数)を重みにする。間隔がばらつく記録(スマート記録)でも、時間の平均になる
+      const w = i < n - 1 ? Math.min(Math.min(a.t[i + 1], endT) - a.t[i], HR_WEIGHT_MAX_SEC) : 1;
+      if (w <= 0) continue;
+      hs += a.hr[i] * w; hn += w;
+      if (a.d[i] < Lg) { const k = Math.floor(a.d[i] / 1000); if (k < nKm) { km[k].hrSum += a.hr[i] * w; km[k].hrN += w; } }
     }
   }
   // 後半−前半:時計の距離の半分の地点で分ける(任意指定は指定した距離の半分)。みなし停止も含めた時間で比べる
@@ -501,14 +533,14 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
   const STORE_KEY = 'runlog.v1';
   const MAX_RECORDS = PALETTE.length; // 一覧に入れられる記録の上限(線の色の数と同じ。グラフで非表示の記録も1件と数える)
   const $ = (s) => document.querySelector(s);
-  let acts = [];      // {id,name,startUnix,t,d,hr,cut,show,color}
+  let acts = [];      // {name,startUnix,tzOffset,t,d,hr,raceType,customKm,show,color}
   const ui = { desc: true, hr: false, noStop: false, stopKmh: STOP_KMH_DEFAULT };
   let hover = null;   // 何km目にマウスがあるか(1始まり)
 
   // ---- 保存(このブラウザの中だけ。位置情報は保存しない) ----
   function save() {
     try {
-      const slim = acts.map(a => ({ id: a.id, name: a.name, startUnix: a.startUnix, t: a.t, d: a.d, hr: a.hr, raceType: a.raceType, customKm: a.customKm, show: a.show, color: a.color }));
+      const slim = acts.map(a => ({ name: a.name, startUnix: a.startUnix, tzOffset: a.tzOffset, t: a.t, d: a.d, hr: a.hr, raceType: a.raceType, customKm: a.customKm, show: a.show, color: a.color }));
       localStorage.setItem(STORE_KEY, JSON.stringify(slim));
       $('#savemsg').textContent = '';
     } catch (e) {
@@ -544,20 +576,18 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
       a.show = a.show !== false;
       if (!PALETTE.includes(a.color) || used.has(a.color)) a.color = PALETTE.find(c => !used.has(c)) || PALETTE[0]; // 色の数を減らした版からの移行
       used.add(a.color);
-      if (typeof a.id !== 'string') a.id = 'a' + Math.random().toString(36).slice(2, 10);
+      if (!Number.isFinite(a.tzOffset)) a.tzOffset = null;   // 1.1.0以前の記録には無い(端末の日付で表示)
+      delete a.id;
     }
     acts = ok;
     if (bad) { save(); $('#savemsg').textContent = `保存されていた記録のうち、${bad}件は読み込めなかったため、一覧から外しました。`; }
   }
 
   // ---- 名前の重複(同じ名前・同じ日付)を避ける ----
-  function fmtDate(u) {
-    const d = new Date(u * 1000);
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-  }
+  function fmtDate(x) { return fmtYmd(x.startUnix, x.tzOffset); }
   function uniqueName(baseName, dateStr) {
     let name = baseName, n = 2;
-    const clash = () => acts.some(x => x.name === name && fmtDate(x.startUnix) === dateStr);
+    const clash = () => acts.some(x => x.name === name && fmtDate(x) === dateStr);
     while (clash()) { name = `${baseName} (${n})`; n++; }
     return name;
   }
@@ -572,7 +602,7 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
     dup: 'は、すでに追加されています',
     broken: 'は、fitファイルの中身を読み取れませんでした',
     nodist: 'は、走行データ(距離の記録)が見つからず、読み込めませんでした',
-    short: 'は、距離が0.5km未満のため、読み込みませんでした',
+    short: `は、距離が${MIN_DIST_M / 1000}km未満のため、読み込みませんでした`,
     notzip: 'は、zipファイルと認識できず読み込めませんでした',
     nofit: 'の中に、fitファイルが見つかりませんでした',
     locked: 'は、パスワード付きのため読み込めませんでした',
@@ -603,8 +633,7 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
     try { a = buildActivity(fileName, parseFit(buf)); }
     catch (e) { errs.push({ names, code: (e && e.code) || 'broken' }); return false; }
     if (acts.some(x => x.startUnix === a.startUnix && x.d.length === a.d.length)) { errs.push({ names, code: 'dup' }); return false; }
-    a.name = uniqueName(a.name, fmtDate(a.startUnix));
-    a.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    a.name = uniqueName(a.name, fmtDate(a));
     a.raceType = 'full';
     a.show = true;
     const used = new Set(acts.map(x => x.color));
@@ -707,7 +736,7 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
       if (!r) {
         const td = cell('この記録は計算できませんでした', 'l'); td.colSpan = ncol - 3;
       } else {
-        cell(fmtDate(a.startUnix), 'num l');
+        cell(fmtDate(a), 'num l');
         cell(`${(r.total / 1000).toFixed(1)}km`, 'num l');
         cell(hms(r.time), 'num l');
         const st = cell(ms(r.stopTotal), 'num');
@@ -780,7 +809,7 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
     const series = vis.map(a => {
       const pace = a.res.km.map(k => {
         const s = ui.noStop ? k.sec - k.stop : k.sec;
-        return (ui.noStop && k.sec - k.stop < 30) ? null : s;
+        return (ui.noStop && k.sec - k.stop < MIN_MOVING_SEC) ? null : s;
       });
       return { a, pace, hr: a.res.km.map(k => k.hr), stop: a.res.km.map(k => k.stop) };
     });
@@ -791,7 +820,8 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
       s.hr.forEach(v => { if (v != null) { hmin = Math.min(hmin, v); hmax = Math.max(hmax, v); } });
     }
     if (!isFinite(pmin)) { pmin = 300; pmax = 420; }
-    let pstep = (pmax - pmin) > 300 ? 60 : 30;
+    const PACE_STEPS = [30, 60, 120, 300, 600, 900, 1800];   // 目盛りの刻み(秒)。目盛りが8本前後になる刻みを選ぶ
+    let pstep = PACE_STEPS.find(st => (pmax - pmin + 16) / st <= 8) || PACE_STEPS[PACE_STEPS.length - 1];
     let [p0, p1] = niceRange(pmin - 8, pmax + 8, pstep); if (p1 - p0 < 3 * pstep) p1 = p0 + 3 * pstep;
     const showHr = ui.hr && isFinite(hmin);
     let h0 = 0, h1 = 1; if (showHr) { [h0, h1] = niceRange(hmin - 4, hmax + 4, 10); }
@@ -849,28 +879,41 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
     $('#hint').textContent = ui.noStop ? '○マークは、その1km区間で、みなし停止が長かったことを示します。' : 'みなし停止の時間もペースに含めています。みなし停止があったキロは、大きく遅く見えます。';
   }
 
-  cv.addEventListener('mousemove', (e) => {
+  function hideTip() {
+    if (hover === null && tip.style.display === 'none') return;
+    hover = null; tip.style.display = 'none'; drawChart();
+  }
+  function showTipAt(e) {
     if (!geo) return;
     const r = cv.getBoundingClientRect(), x = e.clientX - r.left;
     const km = Math.floor((x - geo.padL) / geo.pw * geo.maxKm) + 1;
-    if (km < 1 || km > geo.maxKm) { hover = null; tip.style.display = 'none'; drawChart(); return; }
+    if (km < 1 || km > geo.maxKm) { hideTip(); return; }
     hover = km; drawChart();
-    let html = `<b>${km}km目</b>`;
+    // 名前は文字として入れる(HTMLとしては扱わない)
+    tip.textContent = '';
+    const head = document.createElement('b'); head.textContent = `${km}km目`; tip.appendChild(head);
     for (const s of geo.series) {
       if (km > s.pace.length) continue;
       const k = s.a.res.km[km - 1];
       const shown = ui.noStop ? k.sec - k.stop : k.sec;
-      let line = `<span class="sw" style="background:${s.a.color}"></span>${s.a.name.replace(/</g, '&lt;')}  ${ms(shown)}/km`;
-      if (k.hr) line += `  心拍${Math.round(k.hr)}`;
-      if (k.stop >= 5) line += `  みなし停止${ms(k.stop)}`;
-      html += '<br>' + line;
+      const line = document.createElement('div');
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = s.a.color; line.appendChild(sw);
+      let txt = `${s.a.name}  ${ms(shown)}/km`;
+      if (k.hr) txt += `  心拍${Math.round(k.hr)}`;
+      if (k.stop >= TIP_STOP_MIN_SEC) txt += `  みなし停止${ms(k.stop)}`;
+      line.appendChild(document.createTextNode(txt));
+      tip.appendChild(line);
     }
-    tip.innerHTML = html; tip.style.display = 'block';
+    tip.style.display = 'block';
     const bw = cv.parentElement.clientWidth, tw = tip.offsetWidth;
     let left = e.clientX - r.left + 14; if (left + tw > bw) left = e.clientX - r.left - tw - 14;
     tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - r.top - 10) + 'px';
-  });
-  cv.addEventListener('mouseleave', () => { hover = null; tip.style.display = 'none'; drawChart(); });
+  }
+  // マウスは動かしたとき、iPhoneなどはタップしたときに値を出す。グラフの外をタップすると消す
+  cv.addEventListener('pointermove', showTipAt);
+  cv.addEventListener('pointerdown', showTipAt);
+  cv.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') hideTip(); });
+  document.addEventListener('pointerdown', (e) => { if (e.target !== cv) hideTip(); });
 
   // ---- Safari/WebKitが再描画を止めて見えることがある対策:強制的に描き直させる ----
   function nudgeRepaint() {
@@ -894,6 +937,10 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
   ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
   drop.addEventListener('drop', (e) => { enqueue([...e.dataTransfer.files]); });
+  // 枠の外に落としたとき、ブラウザがファイルを開いたりダウンロードしたりしないようにする
+  window.addEventListener('dragover', (e) => { if (!drop.contains(e.target)) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'; } });
+  window.addEventListener('drop', (e) => { if (!drop.contains(e.target)) e.preventDefault(); });
+  $('#pick').addEventListener('click', () => fileInp.click());
   $('#clear').addEventListener('click', () => {
     if (confirm('取り込んだ記録をすべて消しますか?(元のfitファイルは消えません)')) { acts = []; save(); render(); }
   });
@@ -922,12 +969,11 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
     setTimeout(drawChart, 350);
     setTimeout(nudgeRepaint, 60);
     setTimeout(nudgeRepaint, 350);
-    // Safariでdetails要素などの再描画が止まって見えることがあるので、強制的に描き直す
+    // Safariで説明パネルの再描画が止まって見えることがあるので、強制的に描き直す
     const nb = document.querySelector('.help');
     if (nb) { nb.style.display = 'none'; void nb.offsetHeight; nb.style.display = ''; }
   });
   if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawChart);
-  new MutationObserver(drawChart).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // 起動時に、画面の入力欄を計算の設定(ui)に合わせる(ブラウザが前回の入力を戻しても、ずれないように)
   $('#stopbox').checked = ui.noStop;
@@ -947,6 +993,12 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
   $('#maxRec').textContent = MAX_RECORDS;
   $('#stopKmhDef').textContent = STOP_KMH_DEFAULT.toFixed(1);
   $('#stopRunSec').textContent = STOP_RUN_SEC;
+  $('#customMin').textContent = CUSTOM_MIN_KM.toFixed(1);
+  $('#customMax').textContent = CUSTOM_MAX_KM.toFixed(1);
+  $('#hrEarlyMin').textContent = HR_EARLY_SEC / 60;
+  $('#hrBaseFrom').textContent = HR_EARLY_SEC / 60;
+  $('#hrBaseTo').textContent = HR_BASE_END_SEC / 60;
+  $('#hrExcess').textContent = HR_EXCESS_BPM;
   load(); render();
   // Googleフォントが読み込まれたら、グラフの文字を描き直す
   if (document.fonts) {
