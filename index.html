@@ -83,7 +83,7 @@ th.l,td.l{text-align:left}
 th.c,td.c{text-align:center}
 td.center,th.center{text-align:center}
 .sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px}
-.nameinp{font:inherit;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;width:8em}
+.nameinp{font:inherit;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;width:11.5em}
 .nameinp:hover,.nameinp:focus{border-color:var(--line);background:var(--bg)}
 .nb{white-space:nowrap}
 th.wrapok{white-space:normal}
@@ -151,7 +151,7 @@ canvas{display:block;width:100%;height:100%;touch-action:pan-y}
       <dd>「計測距離」は、ランニングウォッチ(fitファイル)の記録です。この距離は大会の正式な距離より、少し長くなることも、短くなることもあり、公式記録とずれが生じる場合があります。</dd>
       <dd>「時間」は、ランニングウォッチの記録上の経過時間です。自動停止(オートポーズ)を使った記録では、その停止時間も含まれるため、ランニングウォッチ本体に表示される時間と異なることがあります。</dd>
       <dt>後半−前半</dt>
-      <dd>計測距離の半分の地点で分けて比べます(任意指定のときは、指定した距離の半分)。「+」の場合、後半の方が遅かったことを表します。みなし停止の時間も含めて比べます。</dd>
+      <dd>計測距離の半分の地点で分けて前半と後半の時間を比較します(任意指定のときは、指定した距離の半分)。みなし停止の時間も含めます。「+」の場合、後半の方が遅かったことを表します。</dd>
       <dt>平均心拍</dt>
       <dd>開始から<span id="hrEarlyMin">15</span>分までの間に、その後の安定した心拍(<span id="hrBaseFrom">15</span>〜<span id="hrBaseTo">40</span>分の中央値)より<span id="hrExcess">10</span>以上高い値があれば、その値を除いて計算します。ランニングウォッチが開始直後に、実際より高く表示することがあるためです。</dd>
     </dl>
@@ -183,8 +183,10 @@ canvas{display:block;width:100%;height:100%;touch-action:pan-y}
         <thead>
           <tr>
             <th class="c">計算に使う距離</th><th class="l">名前</th><th class="l">日付</th>
-            <th class="l">計測距離</th><th class="l">時間</th><th class="wrapok"><span class="nb">みなし停止</span><span class="nb">時間</span></th><th class="wrapok"><span class="nb">平均ペース</span><span id="paceNote" class="small"><span class="nb">みなし停止時間</span><span class="nb">を含む</span></span></th>
-            <th>平均心拍</th><th class="wrapok"><span class="nb">後半−前半</span><span class="small"><span class="nb">半分の距離で</span><span class="nb">分割/</span><span class="nb">停止を含む</span></span></th>
+            <th class="l">計測距離</th><th class="c">時間</th><th class="c">平均心拍</th>
+            <th class="c wrapok"><span class="nb">みなし停止</span><br><span class="nb">時間</span></th>
+            <th class="c">平均ペース<br><span id="paceNote">(停止込み)</span></th>
+            <th class="c">後半−前半<br>(停止込み)</th>
             <th class="c"></th>
           </tr>
         </thead>
@@ -215,7 +217,7 @@ canvas{display:block;width:100%;height:100%;touch-action:pan-y}
     <p>計算結果は目安です。ご利用は自己責任でお願いします。</p>
     <p>読み込んだ記録は、お使いのブラウザにだけ保存され、外部には送信されません。</p>
     <p>なお、文字の書体(Googleフォント)は、Googleから読み込んでいます。ページを開く際、お使いの端末のIPアドレスなどがGoogleに送信されます。</p>
-    <p class="ver">Ver. 1.1.1(2026年10月20日版)</p>
+    <p class="ver">Ver. 1.1.2(2026年10月20日版)</p>
   </footer>
 </div>
 <script>
@@ -738,21 +740,21 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
       } else {
         cell(fmtDate(a), 'num l');
         cell(`${(r.total / 1000).toFixed(1)}km`, 'num l');
-        cell(hms(r.time), 'num l');
-        const st = cell(ms(r.stopTotal), 'num');
-        if (r.stops.length) {
-          st.title = r.stops.map(x => `${x.km.toFixed(1)}km ${ms(x.sec)}`).join(' / ');
-          st.style.textDecoration = 'underline dotted';
-          st.style.textDecorationColor = 'var(--line)';
-        }
-        cell(ms(ui.noStop ? r.moving : r.pace) + '/km', 'num');
-        const hrCell = cell(r.avgHr ? Math.round(r.avgHr) : '-', 'num');
+        cell(hms(r.time), 'num c');
+        const hrCell = cell(r.avgHr ? Math.round(r.avgHr) : '-', 'num c');
         if (r.hrExcl) {
           hrCell.title = `開始直後の高すぎる心拍 ${r.hrExcl}点を除いています`;
           hrCell.style.textDecoration = 'underline dotted';
           hrCell.style.textDecorationColor = 'var(--line)';
         }
-        cell(r.half == null ? '-' : signedMs(r.half), 'num');
+        const st = cell(ms(r.stopTotal), 'num c');
+        if (r.stops.length) {
+          st.title = r.stops.map(x => `${x.km.toFixed(1)}km ${ms(x.sec)}`).join(' / ');
+          st.style.textDecoration = 'underline dotted';
+          st.style.textDecorationColor = 'var(--line)';
+        }
+        cell(ms(ui.noStop ? r.moving : r.pace) + '/km', 'num c');
+        cell(r.half == null ? '-' : signedMs(r.half), 'num c');
       }
 
       const tdDel = document.createElement('td'); tdDel.className = 'c';
@@ -820,7 +822,7 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
       s.hr.forEach(v => { if (v != null) { hmin = Math.min(hmin, v); hmax = Math.max(hmax, v); } });
     }
     if (!isFinite(pmin)) { pmin = 300; pmax = 420; }
-    const PACE_STEPS = [30, 60, 120, 300, 600, 900, 1800];   // 目盛りの刻み(秒)。目盛りが8本前後になる刻みを選ぶ
+    const PACE_STEPS = [15, 30, 60, 120, 300, 600, 900, 1800];   // 目盛りの刻み(秒)。目盛りが8本前後になる刻みを選ぶ
     let pstep = PACE_STEPS.find(st => (pmax - pmin + 16) / st <= 8) || PACE_STEPS[PACE_STEPS.length - 1];
     let [p0, p1] = niceRange(pmin - 8, pmax + 8, pstep); if (p1 - p0 < 3 * pstep) p1 = p0 + 3 * pstep;
     const showHr = ui.hr && isFinite(hmin);
@@ -925,7 +927,7 @@ function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
   // ---- 全体の描き直し ----
   function render() {
     for (const a of acts) { try { a.res = analyze(a, ui.stopKmh); } catch (e) { a.res = null; } } // 1件が計算できなくても、ほかは表示する
-    $('#paceNote').innerHTML = '<span class="nb">みなし停止時間</span><span class="nb">' + (ui.noStop ? 'を除く' : 'を含む') + '</span>';
+    $('#paceNote').textContent = ui.noStop ? '(停止除く)' : '(停止込み)';
     renderTable(); renderLegend(); drawChart();
     $('#clear').style.display = acts.length ? '' : 'none';
     nudgeRepaint();
