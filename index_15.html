@@ -1,0 +1,960 @@
+<!doctype html>
+<!-- 公開する前に、CHECKLIST.md を確認すること -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>マラソンランビューワー | Marathon Run Viewer</title>
+<meta name="description" content="ランニングウォッチの走行記録ファイル(fitファイル)を読み込んで、1kmごとのペースや心拍をグラフで比べる、マラソン・ランニングの記録比較ツールです。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f3f5f4; --surface:#ffffff; --text:#1b2327; --muted:#5f6b71; --line:#dde3e1;
+  --accent:#0c6956; --accent-ink:#ffffff; --soft:#e3f7f3; --warn:#8a5a00;
+  --grid:#e6ebe9; --axis:#69757b;
+  --sans:"Zen Kaku Gothic New","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic","Meiryo",system-ui,sans-serif;
+  --num:"Barlow Condensed","Arial Narrow","Hiragino Sans","Yu Gothic UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12181a; --surface:#1a2225; --text:#e7edee; --muted:#9aa8ad; --line:#2b373b;
+    --accent:#28ab91; --accent-ink:#082022; --soft:#183933; --warn:#e2b04a;
+    --grid:#26333a; --axis:#8b989e;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12181a; --surface:#1a2225; --text:#e7edee; --muted:#9aa8ad; --line:#2b373b;
+  --accent:#28ab91; --accent-ink:#082022; --soft:#183933; --warn:#e2b04a;
+  --grid:#26333a; --axis:#8b989e;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:15px;line-height:1.7;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:22px 20px 40px}
+.top{padding-bottom:16px;border-bottom:4px solid var(--accent)}
+.top h1{margin:0;font-size:30px;line-height:1.2;font-weight:700;letter-spacing:.01em}
+.top h1 small{font-family:var(--num);font-size:20px;font-weight:500;letter-spacing:.04em;color:var(--muted);margin-left:14px}
+.lead{margin-top:10px;color:var(--muted);font-size:14px}
+.lead p{margin:2px 0 0}
+h2{font-size:16px;margin:0;font-weight:700}
+section{margin-top:16px}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:9px}
+.num{font-variant-numeric:tabular-nums}
+td.num{font-family:var(--num);font-size:15.5px;font-weight:500}
+
+.topbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.help{margin-top:12px;border-left:4px solid var(--accent);scroll-margin-top:12px}
+.help[hidden]{display:none}
+.help-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.help-h h2{margin:0;font-size:17px}
+.help h3{margin:14px 0 4px;font-size:15px}
+.help p,.help dd{margin:4px 0;font-size:14.5px}
+.help dl{margin:4px 0}.help dt{font-weight:700;margin-top:8px;font-size:14.5px}.help dd{margin:2px 0 0}
+
+.drop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 16px;border:2px dashed var(--line);
+  border-radius:10px;background:var(--surface);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--soft)}
+.drop p{margin:0;flex:1 1 240px}
+.drop small{color:var(--muted);display:block}
+button,.btn{font:inherit;font-size:14px;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:7px 12px}
+button:hover,.btn:hover{background:var(--soft)}
+button.primary,.btn.primary{border-color:var(--accent);color:var(--accent);font-weight:700}
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.msg{margin-top:10px;font-size:14px;color:var(--warn)}
+.msg:empty{display:none}
+.msg div{margin:2px 0}
+.msg b{color:var(--text);font-weight:700}
+
+.tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.scrollhint{display:none;font-size:12.5px;color:var(--muted);margin:6px 2px 0}
+@media (max-width:900px){.scrollhint{display:block}}
+table{border-collapse:collapse;width:100%;min-width:880px;font-size:14px}
+th,td{padding:6px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-weight:700;color:var(--muted);background:var(--bg);font-size:13px;line-height:1.4}
+tr:last-child td{border-bottom:0}
+th.l,td.l{text-align:left}
+th.c,td.c{text-align:center}
+td.center,th.center{text-align:center}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+.nameinp{font:inherit;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;width:8em}
+.nameinp:hover,.nameinp:focus{border-color:var(--line);background:var(--bg)}
+.nb{white-space:nowrap}
+th.wrapok{white-space:normal}
+.customkm{font-family:var(--num);font-size:16px;font-weight:500;width:4.6em;padding:2px 4px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.raceSel{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 4px}
+.small{font-size:12.5px;color:var(--muted);line-height:1.5;display:block}
+.del{padding:2px 7px;font-size:13px;color:var(--muted)}
+.empty td{text-align:center;color:var(--muted);padding:26px 12px;white-space:normal}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 10px}
+.controls{display:flex;gap:8px 20px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.controls label{display:inline-flex;gap:7px;align-items:center;cursor:pointer}
+.controls input[type="checkbox"]{accent-color:var(--accent);width:17px;height:17px}
+.controls select{font-family:var(--num);font-size:16px;font-weight:500;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text)}
+.controls input[type="number"]{font-family:var(--num);font-size:16px;font-weight:500;width:4em;padding:2px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--text)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;border-radius:0;padding:6px 14px;background:transparent;color:var(--muted)}
+.seg button[aria-pressed="true"],.seg button[aria-pressed="true"]:hover{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:5px 18px;margin:2px 0 8px;font-size:13.5px}
+.legend label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.legend input[type="checkbox"]{accent-color:var(--accent);width:15px;height:15px;margin:0}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
+.chartbox{position:relative;width:100%;height:385px}
+canvas{display:block;width:100%;height:100%}
+.tip{position:absolute;pointer-events:none;background:var(--text);color:var(--surface);border-radius:6px;padding:6px 9px;
+  font-size:13px;line-height:1.55;box-shadow:0 2px 8px rgba(0,0,0,.25);white-space:nowrap;display:none;z-index:2}
+.tip b{font-family:var(--num);font-size:16px;font-weight:600}
+.hint{margin:8px 2px 0;font-size:13px;color:var(--muted)}
+.foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7}
+.foot p{margin:0}
+.foot .ver{margin-top:8px;font-family:var(--num);font-size:13px;letter-spacing:.03em}
+@media (max-width:640px){
+  .wrap{padding:16px 14px 34px}
+  .top h1{font-size:25px}
+  .top h1 small{font-size:17px;margin-left:10px}
+  .chartbox{height:335px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>マラソンランビューワー<small>Marathon Run Viewer</small></h1>
+    <div class="lead">
+      <p>ランニングウォッチの走行記録ファイル(fitファイル)を読み込んで、大会やジョグの記録を確認・比較します。</p>
+      <p>1kmごとのペースの変化を、複数の記録で重ねて比べられます。停止していたとみなせる時間を除いてペース計算することもできます。</p>
+    </div>
+  </header>
+
+  <div class="topbtns"><button class="btn primary" id="helpBtn" type="button" aria-expanded="false" aria-controls="help">使い方の説明</button></div>
+
+  <section class="panel help" id="help" aria-labelledby="help-h" hidden>
+    <div class="help-h"><h2 id="help-h">使い方の説明</h2><button class="btn" id="helpClose" type="button">表示を消す</button></div>
+    <h3>1. 記録の追加</h3>
+    <p>ランニングウォッチから書き出したfitファイルを、「記録を追加」の枠にドラッグするか、「ファイルを選ぶ」で選びます。fitファイルが入ったzipファイルも、そのまま読み込めます。複数まとめて入れられます。記録は<span id="maxRec">14</span>件まで入れられます。</p>
+    <h3>2. 記録一覧</h3>
+    <dl>
+      <dt>計算に使う距離</dt>
+      <dd>それぞれの記録で、平均ペースの計算に使う距離を選べます。初期値はフルマラソンです。</dd>
+      <dd>フルマラソン(42.195km)・ハーフマラソン(21.0975km):記録全体の時間を、大会の正式な距離で割って、平均ペースを出します。計測距離が正式な距離とずれていても、公式記録に近いペースになります。</dd>
+      <dd>任意指定(1.0〜99.9km):スタートから、指定した距離の地点までで計算します。</dd>
+      <dd>計測距離を使う:記録全体の時間を、計測距離で割ります。ウルトラや、フル・ハーフ以外の距離のときに使います。</dd>
+      <dd>選んだ距離が記録と合っていないと(たとえば10kmの記録でフルマラソンを選ぶと)、平均ペースが大きく外れます。</dd>
+      <dt>計測距離・時間</dt>
+      <dd>「計測距離」は、ランニングウォッチ(fitファイル)の記録です。この距離は大会の正式な距離より、少し長くなることも、短くなることもあり、公式記録とずれが生じる場合があります。</dd>
+      <dd>「時間」は、ランニングウォッチの記録上の経過時間です。自動停止(オートポーズ)を使った記録では、その停止時間も含まれるため、ランニングウォッチ本体に表示される時間と異なることがあります。</dd>
+      <dt>後半−前半</dt>
+      <dd>計測距離の半分の地点で分けて比べます(任意指定のときは、指定した距離の半分)。「+」の場合、後半の方が遅かったことを表します。みなし停止の時間も含めて比べます。</dd>
+      <dt>平均心拍</dt>
+      <dd>開始から15分までの間に、その後の安定した心拍(15〜40分の中央値)より10以上高い値があれば、その値を除いて計算します。ランニングウォッチが開始直後に、実際より高く表示することがあるためです。</dd>
+    </dl>
+    <h3>3. みなし停止</h3>
+    <p>「みなし停止」は、トイレやエイド、休息などで通常の走行をしていない場面をカットしたときに、平均ペースがどれだけだったかの概算を求めるのが目的です。</p>
+    <p>設定した速さ(初期値は時速<span id="stopKmhDef">2.0</span>km未満)より遅い状態が<span id="stopRunSec">10</span>秒以上続いた時間を、みなし停止時間とします。停止とみなす速さは、グラフの設定欄で変えられます。</p>
+    <p>「みなし停止時間を除く」にチェックを入れると、表の平均ペースとグラフを、みなし停止の時間を除いて表示します。</p>
+  </section>
+
+  <section aria-labelledby="h-add">
+    <h2 id="h-add">記録を追加</h2>
+    <div class="drop" id="drop">
+      <p>ここにfitファイル(またはfitファイル入りのzipファイル)をドラッグするか、ボタンで選んでください(複数まとめて入れられます)。
+        <small>ファイルはこのページの中だけで処理され、外部には送られません。取り込んだ記録は、このブラウザに保存されます(位置情報は保存しません)。</small></p>
+      <label class="btn primary" for="file">ファイルを選ぶ</label>
+      <input id="file" type="file" accept=".fit,.zip" multiple hidden>
+    </div>
+    <div class="msg" id="msg" role="status"></div>
+    <div class="msg" id="savemsg" role="status"></div>
+  </section>
+
+  <section aria-labelledby="h-compare">
+    <div class="sechead">
+      <h2 id="h-compare">記録一覧</h2>
+      <button id="clear" class="del" style="display:none">記録をすべて削除する</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="c">計算に使う距離</th><th class="l">名前</th><th class="l">日付</th>
+            <th class="l">計測距離</th><th class="l">時間</th><th class="wrapok"><span class="nb">みなし停止</span><span class="nb">時間</span></th><th class="wrapok"><span class="nb">平均ペース</span><span id="paceNote" class="small"><span class="nb">みなし停止時間</span><span class="nb">を含む</span></span></th>
+            <th>平均心拍</th><th class="wrapok"><span class="nb">後半−前半</span><span class="small"><span class="nb">半分の距離で</span><span class="nb">分割/</span><span class="nb">停止を含む</span></span></th>
+            <th class="c"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="scrollhint">→ 表がはみ出て見えるときは、横にスクロールできます。</p>
+    <p class="hint" style="margin:8px 2px 22px">同じ大会・同じ日の記録を並べるときは、名前に「大会名+人の名前」のように入れておくと区別しやすくなります。</p>
+
+    <div class="card">
+      <div class="controls">
+        <span class="seg" role="group" aria-label="縦軸の並び">
+          <button id="desc" aria-pressed="true">縦軸:上ほど速い</button>
+          <button id="asc" aria-pressed="false">縦軸:上ほど遅い</button>
+        </span>
+        <label id="hrbox"><input type="checkbox" autocomplete="off">平均心拍を重ねる</label>
+        <label><input id="stopbox" type="checkbox" autocomplete="off">みなし停止時間を除く</label>
+        <label>停止とみなす速さ:時速<select id="stopkmh" autocomplete="off" aria-label="停止とみなす速さ(時速km)"></select>km未満</label>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="chartbox"><canvas id="cv" role="img" aria-label="1kmごとのペース推移の折れ線グラフ"></canvas><div class="tip" id="tip"></div></div>
+      <p class="hint" id="hint"></p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>非公式の、個人が作ったツールです。ランニングウォッチのメーカーとは関係ありません。</p>
+    <p>計算結果は目安です。ご利用は自己責任でお願いします。</p>
+    <p>読み込んだ記録は、お使いのブラウザにだけ保存され、外部には送信されません。</p>
+    <p>なお、文字の書体(Googleフォント)は、Googleから読み込んでいます。ページを開く際、お使いの端末のIPアドレスなどがGoogleに送信されます。</p>
+    <p class="ver">Ver. 1.1.0(2026年10月20日版)</p>
+  </footer>
+</div>
+<script>
+// ===== fit読み取り・解析(画面に依存しない部分) =====
+function fitError(code) { const e = new Error(code); e.code = code; return e; } // 画面側で文に直す
+const FIT_EPOCH_OFFSET = 631065600; // 1970-01-01 から 1989-12-31 までの秒数
+const STOP_KMH_DEFAULT = 2.0;       // 初期値:時速2.0km未満が続いたら「みなし停止」
+const STOP_KMH_CHOICES = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]; // 停止とみなす速さの選択肢(時速km)
+const STOP_RUN_SEC = 10;            // この秒数以上続いた遅い状態だけを、みなし停止に数える
+const STOP_MARK_SEC = 20;           // ○印:その1km区間のみなし停止の合計が、この秒数以上のとき
+const MIN_POINTS = 10;              // 走行データとして扱う、記録の点の最小数
+const FIT_MAX_MB = 20, ZIP_MAX_MB = 200; // 読み込むファイルの大きさの上限(MB)
+const FULL_M = 42195;
+const HALF_M = 21097.5;
+const CUSTOM_MIN_KM = 1.0, CUSTOM_MAX_KM = 99.9; // 「任意指定」で入れられる距離(km)
+const HR_EARLY_SEC = 900;       // 心拍の高すぎる値を探す範囲:開始から15分まで
+const HR_BASE_END_SEC = 2400;   // 基準にする心拍:15〜40分の中央値
+const HR_EXCESS_BPM = 10;       // 基準よりこれ以上高い値を、開始直後の分から外す
+const HR_BASE_MIN_POINTS = 30;  // 基準にする点がこれより少ないときは、除外しない
+
+function readNum(dv, pos, size, bt, le) {
+  const base = bt & 0x1f;
+  switch (base) {
+    case 0: case 2: case 13: { if (size !== 1) return null; const v = dv.getUint8(pos); return v === 0xff ? null : v; }
+    case 10: { if (size !== 1) return null; const v = dv.getUint8(pos); return v === 0 ? null : v; }
+    case 1: { if (size !== 1) return null; const v = dv.getInt8(pos); return v === 0x7f ? null : v; }
+    case 3: { if (size !== 2) return null; const v = dv.getInt16(pos, le); return v === 0x7fff ? null : v; }
+    case 4: { if (size !== 2) return null; const v = dv.getUint16(pos, le); return v === 0xffff ? null : v; }
+    case 11: { if (size !== 2) return null; const v = dv.getUint16(pos, le); return v === 0 ? null : v; }
+    case 5: { if (size !== 4) return null; const v = dv.getInt32(pos, le); return v === 0x7fffffff ? null : v; }
+    case 6: { if (size !== 4) return null; const v = dv.getUint32(pos, le); return v === 0xffffffff ? null : v; }
+    case 12: { if (size !== 4) return null; const v = dv.getUint32(pos, le); return v === 0 ? null : v; }
+    default: return null;
+  }
+}
+
+function parseFit(buf) {
+  const u8 = new Uint8Array(buf);
+  if (u8.length < 14 || String.fromCharCode(u8[8], u8[9], u8[10], u8[11]) !== '.FIT') {
+    throw fitError('notfit');
+  }
+  const dv = new DataView(buf);
+  const hsize = u8[0];
+  const dsize = dv.getUint32(4, true);
+  const end = Math.min(hsize + dsize, u8.length);
+  const defs = {};
+  const recs = [];
+  let sessionStart = null;
+  let lastTs = 0;
+  let pos = hsize;
+  while (pos < end) {
+    const h = u8[pos++];
+    let def, ts = null;
+    if (h & 0x80) {
+      const lt = (h >> 5) & 3, off = h & 0x1f;
+      lastTs = (lastTs & ~0x1f) + off + (off < (lastTs & 0x1f) ? 0x20 : 0);
+      def = defs[lt]; ts = lastTs;
+    } else if (h & 0x40) {
+      const lt = h & 0x0f, dev = !!(h & 0x20);
+      const le = u8[pos + 1] === 0;
+      const gnum = dv.getUint16(pos + 2, le);
+      const nf = u8[pos + 4];
+      pos += 5;
+      const fields = []; let size = 0;
+      for (let i = 0; i < nf; i++) { fields.push([u8[pos], u8[pos + 1], u8[pos + 2]]); size += u8[pos + 1]; pos += 3; }
+      if (dev) {
+        const nd = u8[pos++];
+        for (let i = 0; i < nd; i++) { size += u8[pos + 1]; pos += 3; }
+      }
+      defs[lt] = { gnum, le, fields, size };
+      continue;
+    } else {
+      def = defs[h & 0x0f];
+    }
+    if (!def) throw fitError('broken');
+    if (def.gnum === 20 || def.gnum === 18) {
+      const o = {}; let p = pos;
+      for (const [num, size, bt] of def.fields) { o[num] = readNum(dv, p, size, bt, def.le); p += size; }
+      if (ts !== null) o[253] = ts;
+      if (typeof o[253] === 'number') lastTs = o[253];
+      if (def.gnum === 20) {
+        if (o[253] != null && o[5] != null) recs.push({ t: o[253], d: o[5] / 100, hr: o[3] || 0 });
+      } else if (sessionStart === null && o[2] != null) {
+        sessionStart = o[2];
+      }
+    }
+    pos += def.size;
+  }
+  return { recs, sessionStart };
+}
+
+function nameFromFile(fileName, startUnix) {
+  let s = fileName.replace(/\.fit$/i, '');
+  s = s.replace(/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/g, '').replace(/_?ACTIVITY/gi, '').replace(/\d{8,}/g, '');
+  s = s.replace(/^[\s_\-]+|[\s_\-]+$/g, '').replace(/_{2,}/g, '_');
+  if (s) return s;
+  const d = new Date(startUnix * 1000);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function buildActivity(fileName, parsed) {
+  const r = parsed.recs;
+  if (r.length < MIN_POINTS) throw fitError('nodist');
+  const t0 = r[0].t;
+  const t = [], d = [], hr = [];
+  let lastT = -1, maxD = 0;
+  for (const x of r) {
+    const tt = x.t - t0; if (tt <= lastT) continue;
+    maxD = Math.max(maxD, x.d);
+    t.push(tt); d.push(Math.round(maxD * 10) / 10); hr.push(x.hr); lastT = tt;
+  }
+  if (d[d.length - 1] < 500) throw fitError('short');
+  const startUnix = (parsed.sessionStart != null ? parsed.sessionStart : t0) + FIT_EPOCH_OFFSET;
+  return { name: nameFromFile(fileName, startUnix), startUnix, t, d, hr };
+}
+
+function timeAt(a, x) {
+  const d = a.d, t = a.t; let hi = d.length - 1, lo = 0;
+  if (x <= d[0]) return t[0];
+  if (x >= d[hi]) return t[hi];
+  while (lo < hi) { const m = (lo + hi) >> 1; if (d[m] >= x) hi = m; else lo = m + 1; }
+  const i = lo;
+  return t[i - 1] + (t[i] - t[i - 1]) * ((x - d[i - 1]) / (d[i] - d[i - 1]));
+}
+
+function clampCustomKm(v, fallback) {
+  const x = Math.round(parseFloat(v) * 10) / 10;
+  if (!isFinite(x)) return fallback;
+  return Math.min(CUSTOM_MAX_KM, Math.max(CUSTOM_MIN_KM, x));
+}
+
+// 平均ペースの計算に使う距離(割る距離)
+function distanceFor(raceType, total, customKm) {
+  const rt = raceType || 'full';
+  if (rt === 'all') return total;                 // 計測距離を使う
+  if (rt === 'half') return HALF_M;               // 大会の正式な距離
+  if (rt === 'custom') return Math.min(total, clampCustomKm(customKm, CUSTOM_MAX_KM) * 1000); // スタートから指定した地点まで
+  return FULL_M;                                  // フルマラソン(初期値)
+}
+
+// 開始直後に高く出すぎた心拍を外す境目(基準にする点が足りないときは null)
+function earlyHrCutoff(a, endT) {
+  const v = [];
+  for (let i = 0; i < a.t.length; i++) {
+    if (a.t[i] > endT) break;
+    if (a.t[i] >= HR_EARLY_SEC && a.t[i] < HR_BASE_END_SEC && a.hr[i] > 0) v.push(a.hr[i]);
+  }
+  if (v.length < HR_BASE_MIN_POINTS) return null;
+  v.sort((x, y) => x - y);
+  const m = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  return m + HR_EXCESS_BPM;
+}
+
+function analyze(a, stopKmh) {
+  const stopMps = (stopKmh != null ? stopKmh : STOP_KMH_DEFAULT) / 3.6;
+  const n = a.d.length, total = a.d[n - 1];
+  const rt = a.raceType || 'full';
+  const D = distanceFor(rt, total, a.customKm);       // 平均ペースの割る距離
+  const upToPoint = rt === 'custom';                   // 任意指定は、スタートから指定した地点まで
+  const Lg = Math.min(total, D);                       // 1kmごとのグラフを切る距離(時計の距離)
+  const endT = upToPoint ? timeAt(a, D) : a.t[n - 1];  // 計算に入れる時間の終わり(フル・ハーフ・計測距離は記録全体)
+  const time = endT - a.t[0];
+  const nKm = Math.floor(Lg / 1000 + 1e-9);
+  const bound = [];                                    // 各kmの境目を通った時刻
+  for (let k = 0; k <= nKm; k++) bound.push(timeAt(a, k * 1000));
+  const km = [];
+  for (let k = 0; k < nKm; k++) km.push({ sec: bound[k + 1] - bound[k], stop: 0, hrSum: 0, hrN: 0 });
+
+  // みなし停止:設定より遅い状態が STOP_RUN_SEC 秒以上続いたところだけを数える
+  const runs = []; let cur = null;
+  for (let i = 0; i < n - 1; i++) {
+    const t0 = a.t[i]; if (t0 >= endT) break;
+    const dt = a.t[i + 1] - t0; if (dt <= 0) continue;
+    const t1 = Math.min(a.t[i + 1], endT);
+    if ((a.d[i + 1] - a.d[i]) / dt < stopMps) {
+      if (cur && cur.t1 === t0) cur.t1 = t1;
+      else { cur = { km: a.d[i] / 1000, t0, t1 }; runs.push(cur); }
+    }
+  }
+  const counted = runs.filter(r => r.t1 - r.t0 >= STOP_RUN_SEC);
+  let stopTotal = 0;
+  for (const r of counted) {
+    stopTotal += r.t1 - r.t0;
+    // 各kmの時間の範囲と重なった秒数を、そのkmに足す(kmの境目をまたぐ停止も正しく分ける)
+    for (let k = 0; k < nKm; k++) {
+      if (bound[k + 1] <= r.t0) continue;
+      if (bound[k] >= r.t1) break;
+      km[k].stop += Math.min(r.t1, bound[k + 1]) - Math.max(r.t0, bound[k]);
+    }
+  }
+
+  const hrCut = earlyHrCutoff(a, endT);
+  let hs = 0, hn = 0, hExcl = 0;
+  for (let i = 0; i < n; i++) {
+    if (a.t[i] > endT) break;
+    if (a.hr[i] > 0) {
+      if (hrCut !== null && a.t[i] < HR_EARLY_SEC && a.hr[i] >= hrCut) { hExcl++; continue; }
+      hs += a.hr[i]; hn++;
+      if (a.d[i] < Lg) { const k = Math.floor(a.d[i] / 1000); if (k < nKm) { km[k].hrSum += a.hr[i]; km[k].hrN++; } }
+    }
+  }
+  // 後半−前半:時計の距離の半分の地点で分ける(任意指定は指定した距離の半分)。みなし停止も含めた時間で比べる
+  const halfDist = upToPoint ? D : total;
+  let half = null;
+  if (halfDist >= 5000) { const h = timeAt(a, halfDist / 2) - a.t[0]; half = (time - h) - h; }
+  return {
+    D, L: D, total, nKm, time, stopTotal,
+    stops: counted.map(r => ({ km: r.km, sec: r.t1 - r.t0 })),
+    km: km.map(k => ({ sec: k.sec, stop: k.stop, hr: k.hrN ? k.hrSum / k.hrN : null })),
+    avgHr: hn ? hs / hn : null,
+    hrExcl: hExcl,
+    moving: (time - stopTotal) / (D / 1000),
+    pace: time / (D / 1000),
+    half
+  };
+}
+
+// ===== zipファイルから fitファイルを取り出す(外部の部品は使わず、ブラウザにある解凍の機能を使う) =====
+async function inflateRaw(u8) {
+  let ds;
+  try { ds = new DecompressionStream('deflate-raw'); } catch (e) { throw fitError('nodecomp'); }
+  return await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer();
+}
+function zipEntryName(bytes, utf8) {
+  if (!utf8) { try { return new TextDecoder('shift_jis', { fatal: true }).decode(bytes); } catch (e) { /* UTF-8で読む */ } }
+  return new TextDecoder('utf-8').decode(bytes);
+}
+// zipの目次を読む。返り値:{ entries:[{name, method, csize, usize, loc}](fitファイルだけ), locked:パスワード付きのfitがあったか }
+function zipEntries(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  let eocd = -1;   // zipの最後にある「目次の場所」の印を探す
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 22 - 65535); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw fitError('notzip');
+  const count = dv.getUint16(eocd + 10, true), cdOff = dv.getUint32(eocd + 16, true);
+  if (count === 0xffff || cdOff >= u8.length) throw fitError('notzip');
+  const entries = []; let locked = false, p = cdOff;
+  for (let n = 0; n < count; n++) {
+    if (p + 46 > u8.length || dv.getUint32(p, true) !== 0x02014b50) throw fitError('notzip');
+    const flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true), usize = dv.getUint32(p + 24, true);   // 大きさは目次の値を使う(Garminのzipは、中の見出しに大きさが入っていないため)
+    const nlen = dv.getUint16(p + 28, true), elen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+    const loc = dv.getUint32(p + 42, true);
+    const name = zipEntryName(u8.subarray(p + 46, p + 46 + nlen), !!(flags & 0x800));
+    p += 46 + nlen + elen + clen;
+    const base = name.split('/').pop();
+    if (name.endsWith('/') || name.startsWith('__MACOSX/') || base.startsWith('._')) continue;   // フォルダと、Macが付ける隠しファイルは読まない
+    if (!/\.fit$/i.test(name)) continue;   // fitファイル以外(zipの中のzipも)は読まない
+    if (flags & 1) { locked = true; continue; }
+    entries.push({ name: base, method, csize, usize, loc });
+  }
+  return { entries, locked };
+}
+// zipの中のfitファイルを1つ取り出す(壊れているときは null。古いブラウザでは nodecomp を投げる)
+async function zipExtract(buf, e) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf);
+  try {
+    if (e.loc + 30 > u8.length || dv.getUint32(e.loc, true) !== 0x04034b50) return null;
+    const start = e.loc + 30 + dv.getUint16(e.loc + 26, true) + dv.getUint16(e.loc + 28, true);
+    if (start + e.csize > u8.length) return null;
+    const data = u8.slice(start, start + e.csize);
+    let out;
+    if (e.method === 0) out = data.buffer;
+    else if (e.method === 8) out = await inflateRaw(data);
+    else return null;
+    return out.byteLength === e.usize ? out : null;
+  } catch (err) {
+    if (err && err.code === 'nodecomp') throw err;
+    return null;
+  }
+}
+
+function hms(s) { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}`; }
+function ms(s) { if (!isFinite(s)) return '-'; if (s < 0) return '−' + ms(-s); s = Math.round(s); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+function signedMs(s) { return (s < 0 ? '−' : '+') + ms(Math.abs(s)); }
+
+// ===== 画面まわり =====
+(function () {
+  // 線の色(見分けやすい10色。件数の上限もこの数で決まる)
+  const PALETTE = ['#2a6fdb', '#2f9e44', '#e8590c', '#c2255c', '#7048e8', '#0c8599', '#a68b00', '#e64980', '#868e96', '#9c36b5'];
+  const RACE_TYPES = ['full', 'half', 'all', 'custom'];
+  const STORE_KEY = 'runlog.v1';
+  const MAX_RECORDS = PALETTE.length; // 一覧に入れられる記録の上限(線の色の数と同じ。グラフで非表示の記録も1件と数える)
+  const $ = (s) => document.querySelector(s);
+  let acts = [];      // {id,name,startUnix,t,d,hr,cut,show,color}
+  const ui = { desc: true, hr: false, noStop: false, stopKmh: STOP_KMH_DEFAULT };
+  let hover = null;   // 何km目にマウスがあるか(1始まり)
+
+  // ---- 保存(このブラウザの中だけ。位置情報は保存しない) ----
+  function save() {
+    try {
+      const slim = acts.map(a => ({ id: a.id, name: a.name, startUnix: a.startUnix, t: a.t, d: a.d, hr: a.hr, raceType: a.raceType, customKm: a.customKm, show: a.show, color: a.color }));
+      localStorage.setItem(STORE_KEY, JSON.stringify(slim));
+      $('#savemsg').textContent = '';
+    } catch (e) {
+      $('#savemsg').textContent = 'このブラウザには保存できませんでした。ページを閉じると一覧は消えます。';
+    }
+  }
+  // 保存データ1件の形を確かめる(壊れた記録で、アプリ全体が開けなくならないように)
+  function validRecord(a) {
+    if (!a || typeof a !== 'object' || typeof a.name !== 'string' || !isFinite(a.startUnix)) return false;
+    const { t, d, hr } = a;
+    if (!Array.isArray(t) || !Array.isArray(d) || !Array.isArray(hr)) return false;
+    if (t.length < MIN_POINTS || d.length !== t.length || hr.length !== t.length) return false;
+    for (let i = 0; i < t.length; i++) {
+      if (!Number.isFinite(t[i]) || !Number.isFinite(d[i]) || !Number.isFinite(hr[i])) return false;
+      if (i && (t[i] < t[i - 1] || d[i] < d[i - 1])) return false;
+    }
+    return true;
+  }
+  function load() {
+    let raw;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    let arr = null;
+    try { arr = JSON.parse(raw); } catch (e) { /* 下で扱う */ }
+    if (!Array.isArray(arr)) { $('#savemsg').textContent = '保存されていた記録を読み込めませんでした。'; return; }
+    const ok = arr.filter(validRecord), bad = arr.length - ok.length;
+    const used = new Set();
+    for (const a of ok) {
+      if (!a.raceType) a.raceType = (a.cut === false) ? 'all' : 'full'; // 旧データからの移行
+      if (!RACE_TYPES.includes(a.raceType)) a.raceType = 'full';      // 旧「自動」などは、初期値のフルマラソンに
+      if (a.raceType === 'custom') a.customKm = clampCustomKm(a.customKm, defaultCustomKm(a));
+      delete a.cut;
+      a.show = a.show !== false;
+      if (!PALETTE.includes(a.color) || used.has(a.color)) a.color = PALETTE.find(c => !used.has(c)) || PALETTE[0]; // 色の数を減らした版からの移行
+      used.add(a.color);
+      if (typeof a.id !== 'string') a.id = 'a' + Math.random().toString(36).slice(2, 10);
+    }
+    acts = ok;
+    if (bad) { save(); $('#savemsg').textContent = `保存されていた記録のうち、${bad}件は読み込めなかったため、一覧から外しました。`; }
+  }
+
+  // ---- 名前の重複(同じ名前・同じ日付)を避ける ----
+  function fmtDate(u) {
+    const d = new Date(u * 1000);
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  }
+  function uniqueName(baseName, dateStr) {
+    let name = baseName, n = 2;
+    const clash = () => acts.some(x => x.name === name && fmtDate(x.startUnix) === dateStr);
+    while (clash()) { name = `${baseName} (${n})`; n++; }
+    return name;
+  }
+
+  // 「任意指定」にしたときの最初の距離(計測距離を0.1km単位にしたもの)
+  function defaultCustomKm(a) { return clampCustomKm(a.d[a.d.length - 1] / 1000, CUSTOM_MAX_KM); }
+
+  // ---- ファイル取り込み ----
+  // エラーの文(「追加しようとした ○○ 」のあとに続く部分。n は数を入れる文)
+  const ERR_TEXT = {
+    notfit: 'は、fitファイルと認識できず読み込めませんでした',
+    dup: 'は、すでに追加されています',
+    broken: 'は、fitファイルの中身を読み取れませんでした',
+    nodist: 'は、走行データ(距離の記録)が見つからず、読み込めませんでした',
+    short: 'は、距離が0.5km未満のため、読み込みませんでした',
+    notzip: 'は、zipファイルと認識できず読み込めませんでした',
+    nofit: 'の中に、fitファイルが見つかりませんでした',
+    locked: 'は、パスワード付きのため読み込めませんでした',
+    nodecomp: 'は、お使いのブラウザでは開けませんでした。最新のブラウザで再度お試しいただくか、fitファイルを入れてください',
+    full: `は、記録が上限の${MAX_RECORDS}件に達しているため、読み込みませんでした`,
+    toomany: (n) => `の中のfitファイルが多いため、最初の${n}個だけを読み込みました`,
+    toolarge: (n) => `は、ファイルが大きすぎるため(上限${n}MB)、読み込みませんでした`
+  };
+  // ファイル名は太字にして、文字として表示する(HTMLとしては扱わない)
+  function showErrors(list) {
+    const box = $('#msg'); box.textContent = '';
+    for (const { names, code, n } of list) {
+      const line = document.createElement('div');
+      line.appendChild(document.createTextNode('追加しようとした '));
+      names.forEach((nm, i) => {
+        if (i) line.appendChild(document.createTextNode(' の中の '));
+        const b = document.createElement('b'); b.textContent = nm; line.appendChild(b);
+      });
+      const t = ERR_TEXT[code] || ERR_TEXT.broken;
+      line.appendChild(document.createTextNode(' ' + (typeof t === 'function' ? t(n) : t)));
+      box.appendChild(line);
+    }
+  }
+  // fitファイル1つ分を一覧に加える(names はエラーの文に出す名前)。上限は、実際に加える直前に確かめる
+  function addOne(names, fileName, buf, errs) {
+    if (acts.length >= MAX_RECORDS) { errs.push({ names, code: 'full' }); return false; }
+    let a;
+    try { a = buildActivity(fileName, parseFit(buf)); }
+    catch (e) { errs.push({ names, code: (e && e.code) || 'broken' }); return false; }
+    if (acts.some(x => x.startUnix === a.startUnix && x.d.length === a.d.length)) { errs.push({ names, code: 'dup' }); return false; }
+    a.name = uniqueName(a.name, fmtDate(a.startUnix));
+    a.id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    a.raceType = 'full';
+    a.show = true;
+    const used = new Set(acts.map(x => x.color));
+    a.color = PALETTE.find(c => !used.has(c)) || PALETTE[acts.length % PALETTE.length];
+    acts.push(a);
+    return true;
+  }
+  const MB = 1024 * 1024;
+  async function addFiles(files) {
+    const errs = [];
+    let added = 0;
+    $('#msg').textContent = '読み込み中…';
+    for (const f of files) {
+      if (acts.length >= MAX_RECORDS) { errs.push({ names: [f.name], code: 'full' }); continue; }
+      const isZip = /\.zip$/i.test(f.name);
+      if (!isZip && !/\.fit$/i.test(f.name)) { errs.push({ names: [f.name], code: 'notfit' }); continue; }
+      const maxMb = isZip ? ZIP_MAX_MB : FIT_MAX_MB;
+      if (f.size > maxMb * MB) { errs.push({ names: [f.name], code: 'toolarge', n: maxMb }); continue; }
+      if (!isZip) { if (addOne([f.name], f.name, await f.arrayBuffer(), errs)) added++; continue; }
+      let buf, z;
+      try { buf = await f.arrayBuffer(); z = zipEntries(buf); }
+      catch (e) { errs.push({ names: [f.name], code: (e && e.code) || 'notzip' }); continue; }
+      if (!z.entries.length) { errs.push({ names: [f.name], code: z.locked ? 'locked' : 'nofit' }); continue; }
+      // 1つずつ「取り出す→加える」を進め、上限に達したら止める
+      let tried = 0, stopped = false;
+      for (const e of z.entries) {
+        if (acts.length >= MAX_RECORDS) break;
+        tried++;
+        if (e.usize > FIT_MAX_MB * MB) { errs.push({ names: [f.name, e.name], code: 'toolarge', n: FIT_MAX_MB }); continue; }
+        let out;
+        try { out = await zipExtract(buf, e); }
+        catch (err) { errs.push({ names: [f.name], code: 'nodecomp' }); stopped = true; break; }
+        if (!out) { errs.push({ names: [f.name, e.name], code: 'broken' }); continue; }
+        if (addOne([f.name, e.name], e.name, out, errs)) added++;
+      }
+      if (!stopped && tried < z.entries.length) errs.push({ names: [f.name], code: 'toomany', n: tried });
+    }
+    acts.sort((x, y) => x.startUnix - y.startUnix);
+    showErrors(errs);
+    if (added) save();
+    render();
+  }
+  // 読み込み中に次のファイルが来ても、順番に処理する(並行して進むと上限を超えるため)
+  let queue = Promise.resolve();
+  function enqueue(files) { queue = queue.then(() => addFiles(files)).catch(() => { $('#msg').textContent = ''; }); }
+
+  // ---- 一覧表 ----
+  function renderTable() {
+    const tb = $('#tbody'); tb.textContent = '';
+    const ncol = document.querySelectorAll('thead th').length;
+    if (!acts.length) {
+      const tr = document.createElement('tr'); tr.className = 'empty';
+      const td = document.createElement('td'); td.colSpan = ncol;
+      td.textContent = 'まだ記録がありません。上の枠に、ランニングウォッチから書き出したfitファイルを入れてください。';
+      tr.appendChild(td); tb.appendChild(tr); return;
+    }
+    for (const a of acts) {
+      const r = a.res;
+      const tr = document.createElement('tr');
+      const cell = (txt, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; tr.appendChild(td); return td; };
+
+      // 計算に使う距離(左端)
+      const tdCut = document.createElement('td'); tdCut.className = 'c';
+      const sel = document.createElement('select'); sel.className = 'raceSel'; sel.setAttribute('aria-label', `${a.name}で計算に使う距離`);
+      const total = a.d[a.d.length - 1];
+      const opts = [['full', 'フルマラソン(42.195km)'], ['half', 'ハーフマラソン(21.0975km)'], ['all', `計測距離を使う(${(total / 1000).toFixed(1)}km)`], ['custom', '任意指定']];
+      for (const [v, label] of opts) {
+        const o = document.createElement('option'); o.value = v; o.textContent = label;
+        sel.appendChild(o);
+      }
+      sel.value = a.raceType || 'full';
+      sel.addEventListener('change', () => {
+        a.raceType = sel.value;
+        if (a.raceType === 'custom') a.customKm = clampCustomKm(a.customKm, defaultCustomKm(a));
+        save(); render();
+      });
+      tdCut.appendChild(sel);
+      if (a.raceType === 'custom') {
+        const ci = document.createElement('input'); ci.type = 'number'; ci.className = 'customkm';
+        ci.min = String(CUSTOM_MIN_KM); ci.max = String(CUSTOM_MAX_KM); ci.step = '0.1';
+        ci.value = clampCustomKm(a.customKm, defaultCustomKm(a)).toFixed(1);
+        ci.setAttribute('aria-label', `${a.name}の任意指定の距離(km)`);
+        ci.addEventListener('change', () => {
+          a.customKm = clampCustomKm(ci.value, clampCustomKm(a.customKm, defaultCustomKm(a)));
+          save(); render();
+        });
+        const wrapCi = document.createElement('div'); wrapCi.style.marginTop = '4px';
+        wrapCi.appendChild(ci); wrapCi.appendChild(document.createTextNode(' km'));
+        tdCut.appendChild(wrapCi);
+      }
+      tr.appendChild(tdCut);
+
+      // 名前(空にして確定したら、元の名前に戻す)
+      const tdName = document.createElement('td'); tdName.className = 'l';
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = a.color; tdName.appendChild(sw);
+      const inp = document.createElement('input'); inp.className = 'nameinp'; inp.value = a.name; inp.setAttribute('aria-label', '名前');
+      inp.addEventListener('change', () => { a.name = inp.value.trim() || a.name; inp.value = a.name; save(); drawChart(); renderLegend(); });
+      tdName.appendChild(inp); tr.appendChild(tdName);
+
+      if (!r) {
+        const td = cell('この記録は計算できませんでした', 'l'); td.colSpan = ncol - 3;
+      } else {
+        cell(fmtDate(a.startUnix), 'num l');
+        cell(`${(r.total / 1000).toFixed(1)}km`, 'num l');
+        cell(hms(r.time), 'num l');
+        const st = cell(ms(r.stopTotal), 'num');
+        if (r.stops.length) {
+          st.title = r.stops.map(x => `${x.km.toFixed(1)}km ${ms(x.sec)}`).join(' / ');
+          st.style.textDecoration = 'underline dotted';
+          st.style.textDecorationColor = 'var(--line)';
+        }
+        cell(ms(ui.noStop ? r.moving : r.pace) + '/km', 'num');
+        const hrCell = cell(r.avgHr ? Math.round(r.avgHr) : '-', 'num');
+        if (r.hrExcl) {
+          hrCell.title = `開始直後の高すぎる心拍 ${r.hrExcl}点を除いています`;
+          hrCell.style.textDecoration = 'underline dotted';
+          hrCell.style.textDecorationColor = 'var(--line)';
+        }
+        cell(r.half == null ? '-' : signedMs(r.half), 'num');
+      }
+
+      const tdDel = document.createElement('td'); tdDel.className = 'c';
+      const del = document.createElement('button'); del.className = 'del'; del.textContent = '行削除'; del.setAttribute('aria-label', `${a.name}の行を削除`);
+      del.addEventListener('click', () => { acts = acts.filter(x => x !== a); save(); render(); });
+      tdDel.appendChild(del); tr.appendChild(tdDel);
+      tb.appendChild(tr);
+    }
+  }
+
+  // ---- 凡例(表示・非表示のチェックもここに置く) ----
+  function visible() { return acts.filter(a => a.show && a.res && a.res.nKm >= 1); }
+  function renderLegend() {
+    const lg = $('#legend'); lg.textContent = '';
+    if (!acts.length) return;
+    for (const a of acts) {
+      const s = document.createElement('label');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = a.show;
+      cb.setAttribute('aria-label', `${a.name}をグラフに表示`);
+      cb.addEventListener('change', () => { a.show = cb.checked; save(); drawChart(); });
+      s.appendChild(cb);
+      const i = document.createElement('i'); i.style.borderColor = a.color; s.appendChild(i);
+      s.appendChild(document.createTextNode(a.name));
+      lg.appendChild(s);
+    }
+    // Safariで、直前まであった色付きの印が再描画されず消えて見えることがあるための対策
+    void lg.offsetHeight;
+    lg.style.opacity = '0.999';
+    requestAnimationFrame(() => { lg.style.opacity = ''; });
+  }
+
+  // ---- グラフ ----
+  const cv = $('#cv'), ctx = cv.getContext('2d'), tip = $('#tip');
+  let geo = null;
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const FONT_NUM = '500 14px "Barlow Condensed","Arial Narrow",sans-serif';   // 目盛りの数字
+  const FONT_JP = '12.5px "Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI",Meiryo,system-ui,sans-serif';
+
+  function niceRange(min, max, step) { return [Math.floor(min / step) * step, Math.ceil(max / step) * step]; }
+
+  function drawChart() {
+    const box = cv.parentElement, W = box.clientWidth, H = box.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    const vis = visible();
+    const grid = css('--grid'), axis = css('--axis'), text = css('--text'), surface = css('--surface');
+    ctx.font = FONT_JP;
+    if (!vis.length) {
+      ctx.fillStyle = axis; ctx.textAlign = 'center';
+      ctx.fillText('表示する記録がありません', W / 2, H / 2); geo = null; return;
+    }
+    // データ
+    const series = vis.map(a => {
+      const pace = a.res.km.map(k => {
+        const s = ui.noStop ? k.sec - k.stop : k.sec;
+        return (ui.noStop && k.sec - k.stop < 30) ? null : s;
+      });
+      return { a, pace, hr: a.res.km.map(k => k.hr), stop: a.res.km.map(k => k.stop) };
+    });
+    const maxKm = Math.max(...series.map(s => s.pace.length));
+    let pmin = Infinity, pmax = -Infinity, hmin = Infinity, hmax = -Infinity;
+    for (const s of series) {
+      s.pace.forEach(v => { if (v != null) { pmin = Math.min(pmin, v); pmax = Math.max(pmax, v); } });
+      s.hr.forEach(v => { if (v != null) { hmin = Math.min(hmin, v); hmax = Math.max(hmax, v); } });
+    }
+    if (!isFinite(pmin)) { pmin = 300; pmax = 420; }
+    let pstep = (pmax - pmin) > 300 ? 60 : 30;
+    let [p0, p1] = niceRange(pmin - 8, pmax + 8, pstep); if (p1 - p0 < 3 * pstep) p1 = p0 + 3 * pstep;
+    const showHr = ui.hr && isFinite(hmin);
+    let h0 = 0, h1 = 1; if (showHr) { [h0, h1] = niceRange(hmin - 4, hmax + 4, 10); }
+    const padL = 76, padR = showHr ? 80 : 18, padT = 14, padB = 40;
+    const pw = W - padL - padR, ph = H - padT - padB;
+    const X = (km) => padL + (km - 0.5) / maxKm * pw;                 // 各kmの中央
+    const XD = (dist) => padL + dist / maxKm * pw;                    // 距離の位置
+    const Yp = (v) => ui.desc ? padT + (v - p0) / (p1 - p0) * ph : padT + ph - (v - p0) / (p1 - p0) * ph;
+    const Yh = (v) => padT + ph - (v - h0) / (h1 - h0) * ph;
+    geo = { padL, padR, padT, padB, pw, ph, maxKm, X, W, H, series };
+
+    // 目盛りと格子
+    ctx.lineWidth = 1; ctx.textBaseline = 'middle';
+    for (let v = p0; v <= p1; v += pstep) {
+      const y = Yp(v); ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = axis; ctx.textAlign = 'right'; ctx.font = FONT_NUM; ctx.fillText(ms(v), padL - 8, y);
+    }
+    if (showHr) for (let v = h0; v <= h1; v += 10) {
+      ctx.fillStyle = axis; ctx.textAlign = 'left'; ctx.font = FONT_NUM; ctx.fillText(String(v), W - padR + 8, Yh(v));
+    }
+    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    const step = maxKm > 30 ? 5 : (maxKm > 12 ? 2 : 1);
+    for (let k = step; k <= maxKm; k += step) {
+      const x = XD(k); ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + ph); ctx.stroke();
+      ctx.fillStyle = axis; ctx.font = FONT_NUM; ctx.fillText(String(k), x, padT + ph + 6);
+    }
+    ctx.fillStyle = axis; ctx.font = FONT_JP; ctx.fillText('距離(km)  ※ランニングウォッチ(fitファイル)の距離', padL + pw / 2, padT + ph + 22);
+    ctx.save(); ctx.translate(10, padT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(ui.desc ? '1kmペース(分:秒/km) 上ほど速い' : '1kmペース(分:秒/km) 上ほど遅い', 0, -2); ctx.restore();
+    if (showHr) { ctx.save(); ctx.translate(W - 8, padT + ph / 2); ctx.rotate(Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('平均心拍(点線)', 0, -2); ctx.restore(); }
+
+    // 線
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const s of series) {
+      const col = s.a.color;
+      if (showHr) {
+        ctx.strokeStyle = col; ctx.globalAlpha = .75; ctx.lineWidth = 1.6; ctx.setLineDash([4, 4]); ctx.beginPath();
+        let pen = false; s.hr.forEach((v, i) => { if (v == null) { pen = false; return; } const x = X(i + 1), y = Yh(v); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; });
+        ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.beginPath();
+      let pen = false; s.pace.forEach((v, i) => { if (v == null) { pen = false; return; } const x = X(i + 1), y = Yp(v); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; });
+      ctx.stroke();
+      ctx.fillStyle = col; s.pace.forEach((v, i) => { if (v == null) return; ctx.beginPath(); ctx.arc(X(i + 1), Yp(v), 2.6, 0, 6.283); ctx.fill(); });
+      // みなし停止の印(みなし停止を除いた表示のとき)
+      if (ui.noStop) s.stop.forEach((st, i) => {
+        if (st < STOP_MARK_SEC || s.pace[i] == null) return;
+        ctx.strokeStyle = col; ctx.fillStyle = surface; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(i + 1), Yp(s.pace[i]), 6.5, 0, 6.283); ctx.fill(); ctx.stroke();
+      });
+    }
+    // ホバーの縦線
+    if (hover && hover >= 1 && hover <= maxKm) {
+      ctx.strokeStyle = axis; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(X(hover), padT); ctx.lineTo(X(hover), padT + ph); ctx.stroke(); ctx.setLineDash([]);
+    }
+    $('#hint').textContent = ui.noStop ? '○マークは、その1km区間で、みなし停止が長かったことを示します。' : 'みなし停止の時間もペースに含めています。みなし停止があったキロは、大きく遅く見えます。';
+  }
+
+  cv.addEventListener('mousemove', (e) => {
+    if (!geo) return;
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left;
+    const km = Math.floor((x - geo.padL) / geo.pw * geo.maxKm) + 1;
+    if (km < 1 || km > geo.maxKm) { hover = null; tip.style.display = 'none'; drawChart(); return; }
+    hover = km; drawChart();
+    let html = `<b>${km}km目</b>`;
+    for (const s of geo.series) {
+      if (km > s.pace.length) continue;
+      const k = s.a.res.km[km - 1];
+      const shown = ui.noStop ? k.sec - k.stop : k.sec;
+      let line = `<span class="sw" style="background:${s.a.color}"></span>${s.a.name.replace(/</g, '&lt;')}  ${ms(shown)}/km`;
+      if (k.hr) line += `  心拍${Math.round(k.hr)}`;
+      if (k.stop >= 5) line += `  みなし停止${ms(k.stop)}`;
+      html += '<br>' + line;
+    }
+    tip.innerHTML = html; tip.style.display = 'block';
+    const bw = cv.parentElement.clientWidth, tw = tip.offsetWidth;
+    let left = e.clientX - r.left + 14; if (left + tw > bw) left = e.clientX - r.left - tw - 14;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = Math.max(0, e.clientY - r.top - 10) + 'px';
+  });
+  cv.addEventListener('mouseleave', () => { hover = null; tip.style.display = 'none'; drawChart(); });
+
+  // ---- Safari/WebKitが再描画を止めて見えることがある対策:強制的に描き直させる ----
+  function nudgeRepaint() {
+    const b = document.body;
+    b.style.webkitTransform = 'translateZ(0)';
+    requestAnimationFrame(() => { b.style.webkitTransform = ''; });
+  }
+
+  // ---- 全体の描き直し ----
+  function render() {
+    for (const a of acts) { try { a.res = analyze(a, ui.stopKmh); } catch (e) { a.res = null; } } // 1件が計算できなくても、ほかは表示する
+    $('#paceNote').innerHTML = '<span class="nb">みなし停止時間</span><span class="nb">' + (ui.noStop ? 'を除く' : 'を含む') + '</span>';
+    renderTable(); renderLegend(); drawChart();
+    $('#clear').style.display = acts.length ? '' : 'none';
+    nudgeRepaint();
+  }
+
+  // ---- 操作 ----
+  const fileInp = $('#file'), drop = $('#drop');
+  fileInp.addEventListener('change', () => { enqueue([...fileInp.files]); fileInp.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { enqueue([...e.dataTransfer.files]); });
+  $('#clear').addEventListener('click', () => {
+    if (confirm('取り込んだ記録をすべて消しますか?(元のfitファイルは消えません)')) { acts = []; save(); render(); }
+  });
+  const segAsc = $('#asc'), segDesc = $('#desc');
+  function setDesc(v) { ui.desc = v; segAsc.setAttribute('aria-pressed', String(!v)); segDesc.setAttribute('aria-pressed', String(v)); drawChart(); }
+  segAsc.addEventListener('click', () => setDesc(false)); segDesc.addEventListener('click', () => setDesc(true));
+  $('#hrbox').addEventListener('change', (e) => { ui.hr = e.target.checked; drawChart(); });
+  $('#stopbox').addEventListener('change', (e) => { ui.noStop = e.target.checked; render(); });
+  // 停止とみなす速さ:選択肢から選ぶだけ(数字の打ち込みはできない)
+  const stopSel = $('#stopkmh');
+  for (const v of STOP_KMH_CHOICES) { const o = document.createElement('option'); o.value = String(v); o.textContent = v.toFixed(1); stopSel.appendChild(o); }
+  stopSel.addEventListener('change', () => {
+    const v = parseFloat(stopSel.value);
+    ui.stopKmh = STOP_KMH_CHOICES.includes(v) ? v : STOP_KMH_DEFAULT;
+    render();
+  });
+
+  // コンテナ自体のサイズ変化を直接監視(向き変更やレイアウト変化に、window の resize より確実に追従する)
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => drawChart()).observe(cv.parentElement);
+  }
+  window.addEventListener('resize', drawChart);
+  window.addEventListener('orientationchange', () => {
+    // iOSは向き変更直後に寸法がまだ確定していないことがあるため、少し待って再描画する
+    setTimeout(drawChart, 60);
+    setTimeout(drawChart, 350);
+    setTimeout(nudgeRepaint, 60);
+    setTimeout(nudgeRepaint, 350);
+    // Safariでdetails要素などの再描画が止まって見えることがあるので、強制的に描き直す
+    const nb = document.querySelector('.help');
+    if (nb) { nb.style.display = 'none'; void nb.offsetHeight; nb.style.display = ''; }
+  });
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawChart);
+  new MutationObserver(drawChart).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // 起動時に、画面の入力欄を計算の設定(ui)に合わせる(ブラウザが前回の入力を戻しても、ずれないように)
+  $('#stopbox').checked = ui.noStop;
+  $('#hrbox input').checked = ui.hr;
+  stopSel.value = String(ui.stopKmh);
+  segAsc.setAttribute('aria-pressed', String(!ui.desc)); segDesc.setAttribute('aria-pressed', String(ui.desc));
+  // 使い方の説明の開閉
+  const helpBtn = $('#helpBtn'), help = $('#help');
+  function setHelp(open) {
+    help.hidden = !open; helpBtn.setAttribute('aria-expanded', String(open));
+    if (open) help.scrollIntoView({ block: 'nearest' });
+  }
+  helpBtn.addEventListener('click', () => setHelp(help.hidden));
+  $('#helpClose').addEventListener('click', () => { setHelp(false); helpBtn.focus(); });
+
+  // 使い方の説明の数字は、プログラムの値から入れる
+  $('#maxRec').textContent = MAX_RECORDS;
+  $('#stopKmhDef').textContent = STOP_KMH_DEFAULT.toFixed(1);
+  $('#stopRunSec').textContent = STOP_RUN_SEC;
+  load(); render();
+  // Googleフォントが読み込まれたら、グラフの文字を描き直す
+  if (document.fonts) {
+    if (document.fonts.ready) document.fonts.ready.then(drawChart);
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', drawChart);
+  }
+})();
+
+</script>
+</body>
+</html>
